@@ -2,6 +2,8 @@ services:
   nginx:
     image: nginx:alpine
     container_name: auditor-nginx
+    environment:
+      - TZ=Asia/Taipei
     ports:
       - "80:80"
     volumes:
@@ -14,6 +16,8 @@ services:
   auditor:
     build: .
     container_name: auditor-app
+    environment:
+      - TZ=Asia/Taipei
     env_file:
       - .env
     volumes:

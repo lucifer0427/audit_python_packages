@@ -117,7 +117,7 @@ async def run_audit(file: UploadFile, python_version: str = Form(default="")):
     # 9. 生成報告
     vuln_count = sum(1 for r in audit_results if r.vulnerabilities)
     report = AuditReport(
-        report_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        report_date=datetime.now().isoformat(timespec="seconds"),
         source_file=file.filename,
         total_packages=len(audit_results),
         vuln_count=vuln_count,
@@ -153,9 +153,7 @@ async def list_reports():
             {
                 "filename": f.name,
                 "size": f.stat().st_size,
-                "created": datetime.fromtimestamp(f.stat().st_mtime).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
+                "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
                 "download_url": f"/api/reports/{f.name}",
                 "pdf_download_url": f"/api/reports/{f.with_suffix('.pdf').name}" if f.with_suffix('.pdf').exists() else None,
             }
