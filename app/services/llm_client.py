@@ -72,7 +72,7 @@ class OpenAIClient(LLMClient):
 class GeminiClient(LLMClient):
     """Google Gemini 客戶端"""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str, model: str = "gemma-4-31b-it"):
         from google import genai
 
         self.client = genai.Client(api_key=api_key)
@@ -81,6 +81,8 @@ class GeminiClient(LLMClient):
     def translate_summaries(self, items: list[dict]) -> dict[str, str]:
         if not items:
             return {}
+            
+        from google.genai import types
 
         user_content = "\n".join(
             f"- {item['name']}: {item['summary']}" for item in items
@@ -90,6 +92,9 @@ class GeminiClient(LLMClient):
         try:
             response = self.client.models.generate_content(
                 model=self.model,
+                config=types.GenerateContentConfig(
+                    thinking_config=types.ThinkingConfig(thinking_level="high")
+                ),
                 contents=prompt,
             )
             # 提取 JSON 部分
