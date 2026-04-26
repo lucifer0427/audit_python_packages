@@ -1,6 +1,7 @@
 # 🔒 Python Dependency Auditor V1.0
 
 ![Aesthetics](https://img.shields.io/badge/UI-Professional_Light-blue?style=for-the-badge)
+![Performance](https://img.shields.io/badge/Performance-Parallel_&_Cache-green?style=for-the-badge)
 ![PDF](https://img.shields.io/badge/Report-PDF_&_Markdown-orange?style=for-the-badge)
 ![LLM](https://img.shields.io/badge/AI-Gemma_4_31B-purple?style=for-the-badge)
 
@@ -9,12 +10,14 @@
 ## ✨ 功能特色
 
 - 🎨 **專業商務 UI** — 全新設計的專業淺色主題 (Light Theme)，介面簡潔且美觀。
-- 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（已內建 Noto Sans CJK TC 中文字型）。
+- ⚡ **極速並行處理** — 實現 PyPI 資訊與 OSV 漏洞的 **並行查詢 (Parallel Fetching)**，大幅縮短稽核時間。
+- 🚀 **高效能快取** — 內建 **LRU Cache 機制**，避免對相同套件版本進行重複的網路請求。
+- 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（內建 Noto Sans CJK TC 字型，已優化大檔案排版）。
 - 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，提供直連 Snyk 的漏洞詳情。
 - 🧠 **強大 AI 翻譯** — 支援 **Gemma-4 31B** 模型與 **Thinking (High)** 推理模式，精準翻譯套件功能摘要。
 - 📦 **離線部署支援** — 自動篩選符合特定 Python 版本的 Windows AMD64 安裝檔下載連結。
 - 📜 **歷史紀錄管理** — 內建歷史報告清單，支援一鍵檢視、下載與清空紀錄。
-- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，提升穩定性與安全超時處理。
+- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，提升穩定性並支援 600s 長時間連線處理。
 
 ## 🚀 快速開始
 
@@ -25,9 +28,9 @@
 cp .env.example .env
 ```
 
-在 `.env` 中設定你的 API Key：
+在 `.env` 中設定你的 API Key 與翻譯模式：
 ```ini
-TRANSLATION_MODE=gemini
+TRANSLATION_MODE=gemini  # 或 builtin
 GEMINI_API_KEY=your_api_key_here
 GEMINI_MODEL=gemma-4-31b-it
 ```
@@ -77,7 +80,7 @@ docker compose up -d --build
 ## 🔌 API 端點摘要
 
 - `GET /`: 網頁上傳介面
-- `POST /api/audit`: 執行非同步稽核 (支援超時處理)
+- `POST /api/audit`: 執行非同步稽核 (支援超時處理與並行優化)
 - `GET /api/reports`: 取得歷史稽核紀錄
 - `DELETE /api/reports`: 清空所有歷史報告
 
