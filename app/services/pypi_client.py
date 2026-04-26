@@ -8,6 +8,7 @@ import logging
 import re
 
 import requests
+from functools import lru_cache
 
 from app.config import settings
 from app.utils.sanitizer import clean_license
@@ -27,6 +28,7 @@ def _version_to_cp_tags(python_version: str) -> list[str]:
     return []
 
 
+@lru_cache(maxsize=128)
 def get_package_info(
     name: str,
     version: str | None = None,

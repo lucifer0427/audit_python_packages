@@ -6,6 +6,7 @@
 import logging
 
 import requests
+from functools import lru_cache
 
 from app.config import settings
 from app.models.schemas import VulnerabilityInfo
@@ -13,6 +14,7 @@ from app.models.schemas import VulnerabilityInfo
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=256)
 def query_vulnerabilities(name: str, version: str) -> list[VulnerabilityInfo]:
     """查詢指定套件版本的已知漏洞
 

@@ -1,6 +1,8 @@
 """稽核 API 路由"""
 
 import logging
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -52,21 +54,38 @@ async def run_audit(file: UploadFile, python_version: str = Form(default="")):
     if not packages:
         raise HTTPException(status_code=400, detail="未解析到任何套件")
 
-    # 2. 查詢 PyPI 取得套件資訊 (傳入 python_version 篩選平台安裝檔)
+    # 2. 查詢 PyPI 取得套件資訊 (並行處理)
     pypi_data: dict[str, dict] = {}
-    for pkg in packages:
-        info = pypi_client.get_package_info(pkg.name, pkg.version, python_version or None)
-        pypi_data[pkg.name] = info
+    
+    def fetch_pypi(pkg):
+        return pkg.name, pypi_client.get_package_info(pkg.name, pkg.version, python_version or None)
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        loop = asyncio.get_event_loop()
+        tasks = [loop.run_in_executor(executor, fetch_pypi, pkg) for pkg in packages]
+        pypi_results = await asyncio.gather(*tasks)
+        for name, info in pypi_results:
+            pypi_data[name] = info
 
     # 3. 解析版本 (若 requirements 中未指定精確版本，用 PyPI 回傳的)
     resolved_packages = _resolve_versions(packages, pypi_data)
 
-    # 4. 查詢 OSV 漏洞
+    # 4. 查詢 OSV 漏洞 (並行處理)
     osv_results: dict[str, list] = {}
-    for name, version in resolved_packages.items():
-        vulns = osv_client.query_vulnerabilities(name, version)
-        if vulns:
-            osv_results[name] = vulns
+    
+    def fetch_osv(name, version):
+        return name, osv_client.query_vulnerabilities(name, version)
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        loop = asyncio.get_event_loop()
+        tasks = [
+            loop.run_in_executor(executor, fetch_osv, name, version) 
+            for name, version in resolved_packages.items()
+        ]
+        osv_query_results = await asyncio.gather(*tasks)
+        for name, vulns in osv_query_results:
+            if vulns:
+                osv_results[name] = vulns
 
     # 5. 執行 pip-audit (補充掃描)
     requirements_text = content.decode("utf-8", errors="replace")
