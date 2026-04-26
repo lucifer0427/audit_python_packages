@@ -27,12 +27,23 @@ def truncate(text: str | None, max_len: int = 100) -> str:
     return text[: max_len - 3] + "..."
 
 
-def clean_license(raw_license: str | None, classifiers: list[str] | None = None) -> str:
-    """從 PyPI 回傳的 license 或 classifiers 提取乾淨的授權名稱
+def clean_license(
+    raw_license: str | None,
+    classifiers: list[str] | None = None,
+    license_expression: str | None = None,
+) -> str:
+    """從 PyPI 回傳的 license 資訊提取乾淨的授權名稱
 
-    優先使用 license 欄位；若為空或過長，改從 Trove classifiers 提取。
+    搜尋優先順序:
+    1. license_expression (新版 PyPI metadata，最可靠)
+    2. license 欄位 (舊版，可能含完整 license 文本)
+    3. Trove classifiers
     """
-    # 嘗試從 license 欄位取得
+    # 1. 優先使用 license_expression (新版 metadata)
+    if license_expression and license_expression.strip():
+        return truncate(license_expression.strip(), 100)
+
+    # 2. 嘗試從 license 欄位取得
     if raw_license and raw_license.strip() and raw_license.strip().upper() != "UNKNOWN":
         cleaned = raw_license.strip()
         # 若 license 欄位是完整 license 文本（太長），嘗試從中提取關鍵字
@@ -56,7 +67,7 @@ def clean_license(raw_license: str | None, classifiers: list[str] | None = None)
             return truncate(cleaned, 100)
         return cleaned
 
-    # Fallback: 從 Trove classifiers 提取
+    # 3. Fallback: 從 Trove classifiers 提取
     if classifiers:
         license_prefix = "License :: OSI Approved :: "
         for cls in classifiers:

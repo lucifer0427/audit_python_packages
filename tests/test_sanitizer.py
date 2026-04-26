@@ -70,3 +70,27 @@ class TestCleanLicense:
         ]
         result = clean_license("", classifiers)
         assert result == "BSD License"
+
+    def test_license_expression_priority(self):
+        """license_expression 應優先於 license 和 classifiers"""
+        result = clean_license(
+            "MIT",  # 舊欄位
+            ["License :: OSI Approved :: MIT License"],  # classifiers
+            "BSD-3-Clause",  # license_expression (最高優先)
+        )
+        assert result == "BSD-3-Clause"
+
+    def test_license_expression_none_fallback(self):
+        """license_expression 為 None 時，fallback 到 license 欄位"""
+        result = clean_license("Apache-2.0", None, None)
+        assert result == "Apache-2.0"
+
+    def test_license_expression_compound(self):
+        """複合 license_expression"""
+        result = clean_license(None, None, "Apache-2.0 OR BSD-3-Clause")
+        assert result == "Apache-2.0 OR BSD-3-Clause"
+
+    def test_all_none(self):
+        """所有來源都沒有 license 資訊"""
+        result = clean_license(None, [], None)
+        assert result == "N/A"

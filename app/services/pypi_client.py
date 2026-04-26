@@ -71,10 +71,11 @@ def get_package_info(
     info = data.get("info", {})
     resolved_version = info.get("version", version or "unknown")
 
-    # 授權提取
+    # 授權提取 (優先 license_expression → license → classifiers)
     license_type = clean_license(
         info.get("license"),
         info.get("classifiers", []),
+        info.get("license_expression"),
     )
 
     # 原始碼倉庫 URL
