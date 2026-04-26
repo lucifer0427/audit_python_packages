@@ -11,10 +11,10 @@
 
 ## 📊 稽核總覽
 
-| # | 📦 套件名稱 | 📝 功能簡介 (中) | ⚖️ License (類型/倉庫) | 🛡️ Snyk 漏洞稽核 | 🚀 離線下載 |
-|---|-------------|-----------------|----------------------|------------------|------------|
+| # | 📦 套件名稱 | 📝 功能簡介 (中) | ⚖️ License | 🔗 原始碼倉庫 | 🛡️ Snyk 漏洞稽核 | 🚀 離線下載 |
+|---|-------------|-----------------|-----------|-------------|------------------|------------|
 {% for pkg in packages -%}
-| {{ pkg.index }} | {{ pkg.name }} ({{ pkg.version }}) | {{ pkg.summary_zh | sanitize }} | {{ pkg.license_type | sanitize | truncate_text(80) }}{% if pkg.source_repo %} ([Source]({{ pkg.source_repo }})){% endif %} | [Snyk]({{ pkg.snyk_url }}) {{ pkg.snyk_status }} | {% if pkg.download_filename %}[{{ pkg.download_filename }}]({{ pkg.download_url }}){% else %}[Download]({{ pkg.download_url }}){% endif %} |
+| {{ pkg.index }} | [{{ pkg.name }}](https://pypi.org/project/{{ pkg.name }}/{{ pkg.version }}/) ({{ pkg.version }}) | {{ pkg.summary_zh | sanitize }} | {{ pkg.license_type | sanitize | truncate_text(80) }} | {% if pkg.source_repo %}[Repo]({{ pkg.source_repo }}){% else %}N/A{% endif %} | [Snyk]({{ pkg.snyk_url }}) {{ pkg.snyk_status }} | {% if pkg.download_filename %}[{{ pkg.download_filename }}]({{ pkg.download_url }}){% else %}[Download]({{ pkg.download_url }}){% endif %} |
 {% endfor %}
 
 ---

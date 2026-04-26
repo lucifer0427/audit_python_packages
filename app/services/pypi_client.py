@@ -96,30 +96,50 @@ def get_package_info(
     }
 
 
+def _is_repo_url(url: str) -> bool:
+    """判斷 URL 是否為程式碼託管平台的倉庫連結"""
+    repo_hosts = ["github.com", "gitlab.com", "bitbucket.org", "codeberg.org"]
+    url_lower = url.lower()
+    return any(host in url_lower for host in repo_hosts)
+
+
 def _extract_source_repo(info: dict) -> str | None:
-    """從 project_urls 或 home_page 提取原始碼倉庫 URL"""
+    """從 project_urls 或 home_page 提取原始碼倉庫 URL
+
+    只回傳真正的程式碼託管平台 (GitHub/GitLab/Bitbucket) 連結，
+    過濾掉文件站、捐款頁、issue tracker 等非倉庫 URL。
+    """
     project_urls = info.get("project_urls") or {}
 
-    # 按優先級搜尋
-    url_keys = [
-        "Source", "Source Code", "Repository", "GitHub",
-        "Code", "Homepage", "Home",
-    ]
-    for key in url_keys:
+    # 第一優先: 明確標為 Source/Repository 的 key
+    source_keys = ["Source", "Source Code", "Repository", "GitHub", "Code"]
+    for key in source_keys:
         for pkey, purl in project_urls.items():
-            if key.lower() in pkey.lower() and purl:
+            if key.lower() in pkey.lower() and purl and _is_repo_url(purl):
                 return purl
 
-    # Fallback: home_page
+    # 第二優先: Homepage 但必須是 git 託管平台
+    homepage_keys = ["Homepage", "Home"]
+    for key in homepage_keys:
+        for pkey, purl in project_urls.items():
+            if key.lower() in pkey.lower() and purl and _is_repo_url(purl):
+                return purl
+
+    # 第三優先: home_page 欄位 (也必須是 git 託管平台)
     home_page = info.get("home_page")
-    if home_page and ("github.com" in home_page or "gitlab.com" in home_page):
+    if home_page and _is_repo_url(home_page):
         return home_page
 
-    # 最後嘗試任何 project_url
-    if project_urls:
-        return next(iter(project_urls.values()))
+    # 最後掃描所有 project_urls 找倉庫連結
+    for purl in project_urls.values():
+        if purl and _is_repo_url(purl):
+            # 排除 issue tracker、release notes 等子路徑
+            url_lower = purl.lower()
+            if "/issues" in url_lower or "/releases" in url_lower:
+                continue
+            return purl
 
-    return home_page or None
+    return None
 
 
 def _extract_download_url(
