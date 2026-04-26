@@ -1,0 +1,42 @@
+# 🔒 Python 套件資安稽核報告
+
+> **產出日期**: {{ report_date }}
+> **稽核檔案**: {{ source_file }}
+> **套件總數**: {{ total_packages }}
+> **漏洞套件數**: {{ vuln_count }}
+
+---
+
+## 📊 稽核總覽
+
+| # | 📦 套件名稱 | 📝 功能簡介 (中) | ⚖️ License (類型/倉庫) | 🛡️ Snyk 漏洞稽核 | 🚀 離線下載 |
+|---|-------------|-----------------|----------------------|------------------|------------|
+{% for pkg in packages -%}
+| {{ pkg.index }} | {{ pkg.name }} ({{ pkg.version }}) | {{ pkg.summary_zh | sanitize }} | {{ pkg.license_type | sanitize | truncate_text(80) }}{% if pkg.source_repo %} ([Source]({{ pkg.source_repo }})){% endif %} | [Snyk]({{ pkg.snyk_url }}) {{ pkg.snyk_status }} | [Download]({{ pkg.download_url }}) |
+{% endfor %}
+
+---
+
+## 🛡️ 漏洞明細
+
+{% set has_vulns = [] %}
+{% for pkg in packages %}
+{% if pkg.vulnerabilities %}
+### ⚠️ {{ pkg.name }} ({{ pkg.version }})
+
+| 漏洞 ID | 嚴重性 | 說明 |
+|---------|--------|------|
+{% for vuln in pkg.vulnerabilities -%}
+| {{ vuln.vuln_id }} | {{ vuln.severity or '未知' }} | {{ vuln.summary | sanitize | truncate_text(120) }} |
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+{% if vuln_count == 0 %}
+✅ **所有套件通過漏洞稽核，未發現已知漏洞。**
+{% endif %}
+
+---
+
+> 本報告由 **Python Dependency Auditor V1.0** 自動產出
+> 漏洞資料來源: [OSV](https://osv.dev/) | 套件資訊來源: [PyPI](https://pypi.org/)

@@ -1,0 +1,23 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: auditor-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      auditor:
+        condition: service_started
+    restart: unless-stopped
+
+  auditor:
+    build: .
+    container_name: auditor-app
+    env_file:
+      - .env
+    volumes:
+      - ./reports:/app/reports
+    expose:
+      - "8000"
+    restart: unless-stopped

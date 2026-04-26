@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Dependency Auditor</title>
+    <meta name="description" content="自動化 Python 套件資安稽核工具">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="bg-particles"></div>
+    <div class="container">
+        <header class="header">
+            <div class="header-icon">🔒</div>
+            <h1>Python Dependency Auditor</h1>
+            <p>自動化 Python 套件資安稽核 — 漏洞掃描 / 授權分析 / 中文報告</p>
+        </header>
+
+        <div class="upload-card" id="uploadCard">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📄</div>
+                <div class="drop-zone-text">拖放 requirements.txt 或點擊選擇檔案</div>
+                <div class="drop-zone-hint">支援 UTF-8 / UTF-16 編碼</div>
+                <input type="file" class="file-input" id="fileInput" accept=".txt,.text">
+            </div>
+            <div class="file-selected" id="fileSelected">
+                <span class="file-selected-icon">📎</span>
+                <div class="file-selected-info">
+                    <div class="file-selected-name" id="fileName"></div>
+                    <div class="file-selected-size" id="fileSize"></div>
+                </div>
+                <button class="file-remove" id="fileRemove" title="移除檔案">✕</button>
+            </div>
+            <button class="submit-btn" id="submitBtn" disabled>
+                <span class="spinner"></span>
+                <span class="btn-text">🚀 開始稽核</span>
+            </button>
+            <div class="status-bar" id="statusBar">
+                <div class="progress-track">
+                    <div class="progress-fill indeterminate" id="progressFill"></div>
+                </div>
+                <div class="status-text" id="statusText">正在上傳檔案...</div>
+            </div>
+        </div>
+
+        <div class="result-card" id="resultCard">
+            <div class="result-header">
+                <span class="result-icon" id="resultIcon">✅</span>
+                <span class="result-title" id="resultTitle">稽核完成</span>
+            </div>
+            <div class="result-stats" id="resultStats">
+                <div class="stat-item">
+                    <div class="stat-value safe" id="statTotal">0</div>
+                    <div class="stat-label">套件總數</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="statSafe">0</div>
+                    <div class="stat-label">安全通過</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="statVuln">0</div>
+                    <div class="stat-label">發現漏洞</div>
+                </div>
+            </div>
+            <a class="download-btn" id="downloadBtn" href="#" download>📥 下載稽核報告 (.md)</a>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+
+        <div class="history-card" id="historyCard">
+            <div class="history-title">📋 歷史報告</div>
+            <ul class="history-list" id="historyList">
+                <li class="history-empty">載入中...</li>
+            </ul>
+        </div>
+
+        <footer class="footer">Python Dependency Auditor V1.0</footer>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
