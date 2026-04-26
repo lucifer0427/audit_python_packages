@@ -175,7 +175,7 @@ TERM_MAP: dict[str, str] = {
 }
 
 
-def translate_summaries(items: list[dict]) -> dict[str, str]:
+async def translate_summaries(items: list[dict]) -> dict[str, str]:
     """批次翻譯套件功能摘要
 
     Args:
@@ -197,7 +197,7 @@ def translate_summaries(items: list[dict]) -> dict[str, str]:
 
     # 若有未翻譯的且設定為 LLM 模式，嘗試 LLM 翻譯
     if pending_items and settings.TRANSLATION_MODE != "builtin":
-        llm_results = _try_llm_translate(pending_items)
+        llm_results = await _try_llm_translate(pending_items)
         if llm_results:
             results.update(llm_results)
             # 更新 pending_items，移除已翻譯的
@@ -213,7 +213,7 @@ def translate_summaries(items: list[dict]) -> dict[str, str]:
     return results
 
 
-def _try_llm_translate(items: list[dict]) -> dict[str, str]:
+async def _try_llm_translate(items: list[dict]) -> dict[str, str]:
     """嘗試使用 LLM 翻譯，失敗則回傳空字典 (fallback 到 builtin)"""
     mode = settings.TRANSLATION_MODE
 
@@ -237,7 +237,7 @@ def _try_llm_translate(items: list[dict]) -> dict[str, str]:
         return {}
 
     try:
-        result = client.translate_summaries(items)
+        result = await client.translate_summaries(items)
         logger.info("LLM 翻譯完成: %d/%d 個套件", len(result), len(items))
         return result
     except Exception as e:

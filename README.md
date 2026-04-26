@@ -1,23 +1,22 @@
 # 🔒 Python Dependency Auditor V1.0
 
 ![Aesthetics](https://img.shields.io/badge/UI-Professional_Light-blue?style=for-the-badge)
-![Performance](https://img.shields.io/badge/Performance-Parallel_&_Cache-green?style=for-the-badge)
+![Performance](https://img.shields.io/badge/Performance-Async_IO_&_Gather-green?style=for-the-badge)
 ![PDF](https://img.shields.io/badge/Report-PDF_&_Markdown-orange?style=for-the-badge)
-![LLM](https://img.shields.io/badge/AI-Gemma_4_31B-purple?style=for-the-badge)
+![LLM](https://img.shields.io/badge/AI-Gemma_/_GPT-purple?style=for-the-badge)
 
 自動化 Python 套件資安稽核工具。專為企業環境設計，提供專業的淺色 UI 介面，解析 `requirements.txt` 後自動執行漏洞掃描、授權比對，並產出精美的繁體中文 Markdown 與 PDF 稽核報告。
 
 ## ✨ 功能特色
 
 - 🎨 **專業商務 UI** — 全新設計的專業淺色主題 (Light Theme)，介面簡潔且美觀。
-- ⚡ **極速並行處理** — 實現 PyPI 資訊與 OSV 漏洞的 **並行查詢 (Parallel Fetching)**，大幅縮短稽核時間。
-- 🚀 **高效能快取** — 內建 **LRU Cache 機制**，避免對相同套件版本進行重複的網路請求。
+- ⚡ **全非同步架構** — 基於 FastAPI **Lifespan** 與 **httpx** 的原生非同步 IO，極大化並行效能。
+- 🚀 **高效能異步快取** — 整合 **async-lru** 機制，針對頻繁的 API 查詢提供非同步執行緒安全的快取。
 - 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（內建 Noto Sans CJK TC 字型，已優化大檔案排版）。
-- 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，提供直連 Snyk 的漏洞詳情。
-- 🧠 **強大 AI 翻譯** — 支援 **Gemma-4 31B** 模型與 **Thinking (High)** 推理模式，精準翻譯套件功能摘要。
-- 📦 **離線部署支援** — 自動篩選符合特定 Python 版本的 Windows AMD64 安裝檔下載連結。
-- 📜 **歷史紀錄管理** — 內建歷史報告清單，支援一鍵檢視、下載與清空紀錄。
-- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，提升穩定性並支援 600s 長時間連線處理。
+- 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，並透過邏輯解耦的 **AuditService** 統一管理。
+- 🧠 **健壯的 AI 翻譯** — 支援 **GPT-4o** / **Gemini-2.0** 批次翻譯，具備強大的 JSON 異常解析 Fallback 機制。
+- 🔒 **安全性增強** — 支援 **CORS 來源限制** (ALLOWED_ORIGINS) 與路徑穿越 (Path Traversal) 防護。
+- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，支援 600s 長時間連線處理。
 
 ## 🚀 快速開始
 
@@ -53,10 +52,10 @@ docker compose up -d --build
 | 變數 | 預設值 | 說明 |
 |------|--------|------|
 | `TRANSLATION_MODE` | `builtin` | 翻譯模式: `builtin` / `openai` / `gemini` |
-| `GEMINI_API_KEY` | - | Gemini/Gemma API 金鑰 |
-| `GEMINI_MODEL` | `gemma-4-31b-it` | 使用的高階 AI 模型 |
-| `TZ` | `Asia/Taipei` | 系統時區設定 (預設台北) |
-| `REQUEST_TIMEOUT` | `30` | 外部 API 請求超時時間 |
+| `ALLOWED_ORIGINS` | `["*"]` | CORS 允許來源 (JSON 陣列格式) |
+| `GEMINI_API_KEY` | - | Gemini API 金鑰 |
+| `OPENAI_API_KEY` | - | OpenAI API 金鑰 |
+| `REQUEST_TIMEOUT` | `30` | 外部 API 請求超時時間 (秒) |
 
 ## 📁 專案結構
 
@@ -66,14 +65,15 @@ docker compose up -d --build
 ├── nginx/
 │   └── nginx.conf          # 反向代理與 600s 超時配置
 ├── app/
-│   ├── main.py             # FastAPI 入口
+│   ├── main.py             # FastAPI 入口 (Lifespan & Middleware)
 │   ├── static/             # 專業淺色主題 CSS 與互動 JS
 │   ├── templates/          # HTML 介面與 Jinja2 模板
 │   ├── services/
-│   │   ├── llm_client.py    # Gemma-4 Thinking 實作
-│   │   ├── translator.py    # 翻譯排隊與 Fallback 機制
-│   │   ├── report_generator.py # WeasyPrint PDF 渲染引擎
-│   │   └── ...              # 其他稽核邏輯
+│   │   ├── audit_service.py # 核心稽核流程封裝 (解耦層)
+│   │   ├── llm_client.py    # OpenAI/Gemini 非同步實作
+│   │   ├── osv_client.py    # OSV API 與 async-lru 快取
+│   │   ├── pypi_client.py   # PyPI 資訊查詢與平台篩選
+│   │   └── ...              # 其他輔助模組
 │   └── reports/            # 報告產出目錄 (對應 Volume)
 ```
 

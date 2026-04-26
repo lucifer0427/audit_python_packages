@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # === 網路設定 ===
     REQUEST_TIMEOUT: int = 30
     MAX_RETRIES: int = 3
+    ALLOWED_ORIGINS: list[str] = ["*"]
 
     # === LLM 翻譯設定 ===
     TRANSLATION_MODE: Literal["builtin", "openai", "gemini"] = "builtin"

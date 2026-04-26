@@ -1,30 +1,41 @@
 """OSV (Open Source Vulnerabilities) API 客戶端
-
-查詢 PyPI 套件的已知漏洞。
+負責與 Google OSV 資料庫互動，查詢指定 PyPI 套件版本的已知漏洞資訊。
 """
 
 import logging
-
-import requests
-from functools import lru_cache
+import httpx
+from async_lru import alru_cache
 
 from app.config import settings
 from app.models.schemas import VulnerabilityInfo
 
 logger = logging.getLogger(__name__)
 
+# 全域客戶端實例，由 main.py 的 lifespan 初始化
+_client: httpx.AsyncClient | None = None
 
-@lru_cache(maxsize=256)
-def query_vulnerabilities(name: str, version: str) -> list[VulnerabilityInfo]:
-    """查詢指定套件版本的已知漏洞
 
-    Args:
-        name: 套件名稱
-        version: 套件版本
-
-    Returns:
-        漏洞資訊列表
+def init_client(client: httpx.AsyncClient):
     """
+    初始化全域 HTTP 客戶端
+    讓所有 API 請求共用同一個 Connection Pool，提升效能。
+    """
+    global _client
+    _client = client
+
+
+@alru_cache(maxsize=256)
+async def query_vulnerabilities(name: str, version: str) -> list[VulnerabilityInfo]:
+    """
+    查詢指定套件版本的已知漏洞
+    
+    使用 @alru_cache 對相同套件版本進行快取，避免重複呼叫外部 API。
+    """
+    if _client is None:
+        logger.error("OSV 客戶端未初始化")
+        return []
+
+    # OSV API 要求使用 POST 請求並傳送 JSON Payload
     payload = {
         "package": {
             "name": name,
@@ -34,34 +45,35 @@ def query_vulnerabilities(name: str, version: str) -> list[VulnerabilityInfo]:
     }
 
     try:
-        resp = requests.post(
+        resp = await _client.post(
             settings.OSV_API_URL,
             json=payload,
-            timeout=settings.REQUEST_TIMEOUT,
         )
         resp.raise_for_status()
         data = resp.json()
-    except requests.RequestException as e:
-        logger.warning("OSV 查詢失敗 [%s==%s]: %s", name, version, e)
+    except httpx.HTTPError as e:
+        logger.error("OSV 查詢失敗 [%s==%s]: %s", name, version, e)
         return []
 
+    # 提取 API 回傳的漏洞列表
     vulns = data.get("vulns", [])
     results = []
 
     for vuln in vulns:
         vuln_id = vuln.get("id", "UNKNOWN")
+        # 優先取 summary，若無則取 details
         summary = vuln.get("summary", vuln.get("details", "無描述"))
 
-        # 提取嚴重性
+        # 解析漏洞的嚴重等級 (CVSS)
         severity = _extract_severity(vuln)
 
-        # 建構 Snyk URL
+        # 為每個漏洞提供 Snyk 快速查詢連結
         snyk_url = f"{settings.SNYK_BASE_URL}/{name}"
 
         results.append(
             VulnerabilityInfo(
                 vuln_id=vuln_id,
-                summary=summary[:200] if summary else "無描述",
+                summary=summary[:200] if summary else "無描述", # 限制長度防止表格破版
                 severity=severity,
                 snyk_url=snyk_url,
             )
@@ -72,7 +84,10 @@ def query_vulnerabilities(name: str, version: str) -> list[VulnerabilityInfo]:
 
 
 def _extract_severity(vuln: dict) -> str:
-    """從 OSV 漏洞資料提取嚴重等級"""
+    """
+    從 OSV 漏洞資料中提取嚴重等級
+    優先尋找 CVSS 分數，其次尋找 database_specific 標記。
+    """
     severity_list = vuln.get("severity", [])
     if severity_list:
         for sev in severity_list:
@@ -80,7 +95,7 @@ def _extract_severity(vuln: dict) -> str:
             if score:
                 return _cvss_to_level(score)
 
-    # 從 database_specific 或 ecosystem_specific 推測
+    # 從資料庫特定欄位推測等級
     db_specific = vuln.get("database_specific", {})
     if "severity" in db_specific:
         return db_specific["severity"]
@@ -89,12 +104,19 @@ def _extract_severity(vuln: dict) -> str:
 
 
 def _cvss_to_level(score_str: str) -> str:
-    """CVSS 向量轉嚴重等級 (簡化判斷)"""
+    """
+    將 CVSS 向量或分數轉換為易讀的中文等級
+    - 9.0+ : 嚴重 (Critical)
+    - 7.0-8.9 : 高 (High)
+    - 4.0-6.9 : 中 (Medium)
+    - 0.0-3.9 : 低 (Low)
+    """
     try:
-        # 嘗試從 CVSS 向量提取分數
-        # 格式可能是 "CVSS:3.1/AV:N/..." 或純數字
+        # 處理 CVSS 向量格式 (例如 "CVSS:3.1/AV:N/...")
         if "/" in score_str and ":" in score_str:
             return f"CVSS: {score_str[:30]}"
+        
+        # 處理純數字分數
         score = float(score_str)
         if score >= 9.0:
             return "嚴重"
@@ -104,4 +126,5 @@ def _cvss_to_level(score_str: str) -> str:
             return "中"
         return "低"
     except (ValueError, TypeError):
+        # 若無法解析為數字，則直接回傳截斷後的原字串
         return score_str[:30] if score_str else "未知"

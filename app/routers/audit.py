@@ -1,171 +1,71 @@
-"""稽核 API 路由"""
+"""稽核 API 路由
+本模組定義所有與資安稽核相關的 API 端點，包括執行稽核、
+列出報告、下載報告以及清理歷史紀錄。
+"""
 
 import logging
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
-from app.models.schemas import AuditReport, AuditResult, PackageInfo
-from app.services import (
-    osv_client,
-    parser,
-    pip_audit_runner,
-    pypi_client,
-    report_generator,
-    translator,
-)
-from app.utils.sanitizer import sanitize_for_table
+from app.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
+# 定義 API 路由前綴為 /api，並將此路由歸類在 "audit" 標籤下
 router = APIRouter(prefix="/api", tags=["audit"])
 
 
 @router.post("/audit")
-async def run_audit(file: UploadFile, python_version: str = Form(default="")):
-    """上傳 requirements.txt 執行資安稽核
-
-    Args:
-        file: requirements.txt 檔案
-        python_version: 目標 Python 版本 (如 "3.12")，用於篩選 Windows AMD64 安裝檔
+async def run_audit(
+    request: Request,
+    file: UploadFile,
+    python_version: str = Form(default="")
+):
     """
+    上傳 requirements.txt 執行資安稽核
+    
+    流程：接收檔案 -> 呼叫 AuditService 執行完整流程 -> 回傳結果摘要
+    """
+    # 基本驗證：檢查是否有上傳檔案
     if not file.filename:
         raise HTTPException(status_code=400, detail="未提供檔案")
 
-    # 讀取上傳檔案
+    # 讀取檔案內容 (非同步)
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="檔案內容為空")
 
     logger.info("收到稽核請求: %s (%d bytes)", file.filename, len(content))
 
-    # 1. 解析 requirements.txt
+    # 將複雜的業務邏輯委託給 AuditService 處理，保持路由層簡潔
     try:
-        packages = parser.parse_requirements(content)
+        result = await AuditService.run_audit_flow(content, file.filename, python_version)
+        return JSONResponse(content=result)
+    except ValueError as e:
+        # 捕捉業務邏輯拋出的驗證錯誤 (如解析失敗)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error("解析失敗: %s", e)
-        raise HTTPException(status_code=400, detail=f"檔案解析失敗: {e}")
-
-    if not packages:
-        raise HTTPException(status_code=400, detail="未解析到任何套件")
-
-    # 2. 查詢 PyPI 取得套件資訊 (並行處理)
-    pypi_data: dict[str, dict] = {}
-    
-    def fetch_pypi(pkg):
-        return pkg.name, pypi_client.get_package_info(pkg.name, pkg.version, python_version or None)
-
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        loop = asyncio.get_event_loop()
-        tasks = [loop.run_in_executor(executor, fetch_pypi, pkg) for pkg in packages]
-        pypi_results = await asyncio.gather(*tasks)
-        for name, info in pypi_results:
-            pypi_data[name] = info
-
-    # 3. 解析版本 (若 requirements 中未指定精確版本，用 PyPI 回傳的)
-    resolved_packages = _resolve_versions(packages, pypi_data)
-
-    # 4. 查詢 OSV 漏洞 (並行處理)
-    osv_results: dict[str, list] = {}
-    
-    def fetch_osv(name, version):
-        return name, osv_client.query_vulnerabilities(name, version)
-
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        loop = asyncio.get_event_loop()
-        tasks = [
-            loop.run_in_executor(executor, fetch_osv, name, version) 
-            for name, version in resolved_packages.items()
-        ]
-        osv_query_results = await asyncio.gather(*tasks)
-        for name, vulns in osv_query_results:
-            if vulns:
-                osv_results[name] = vulns
-
-    # 5. 執行 pip-audit (補充掃描)
-    requirements_text = content.decode("utf-8", errors="replace")
-    pip_audit_results = pip_audit_runner.run_pip_audit(requirements_text)
-
-    # 6. 合併漏洞結果
-    merged_vulns = _merge_vulnerabilities(osv_results, pip_audit_results)
-
-    # 7. 翻譯功能摘要
-    translate_items = [
-        {"name": pkg.name, "summary": pypi_data.get(pkg.name, {}).get("summary", "")}
-        for pkg in packages
-    ]
-    translations = translator.translate_summaries(translate_items)
-
-    # 8. 組裝稽核結果
-    audit_results = []
-    for idx, pkg in enumerate(packages, 1):
-        info = pypi_data.get(pkg.name, {})
-        version = resolved_packages.get(pkg.name, pkg.version or "unknown")
-        pkg_vulns = merged_vulns.get(pkg.name.lower(), [])
-        snyk_url = f"{settings.SNYK_BASE_URL}/{pkg.name}"
-
-        if pkg_vulns:
-            snyk_status = f"{len(pkg_vulns)} 個漏洞"
-        else:
-            snyk_status = "Pass"
-
-        audit_results.append(
-            AuditResult(
-                index=idx,
-                name=pkg.name,
-                version=version,
-                summary_en=info.get("summary", ""),
-                summary_zh=sanitize_for_table(
-                    translations.get(pkg.name, "Python 套件。")
-                ),
-                license_type=info.get("license", "N/A"),
-                source_repo=info.get("source_repo"),
-                vulnerabilities=pkg_vulns,
-                snyk_url=snyk_url,
-                snyk_status=snyk_status,
-                download_url=info.get("download_url", ""),
-                download_filename=info.get("download_filename", ""),
-            )
-        )
-
-    # 9. 生成報告
-    vuln_count = sum(1 for r in audit_results if r.vulnerabilities)
-    report = AuditReport(
-        report_date=datetime.now().isoformat(timespec="seconds"),
-        source_file=file.filename,
-        total_packages=len(audit_results),
-        vuln_count=vuln_count,
-        python_version=python_version or "未指定",
-        platform="Windows AMD64",
-        packages=audit_results,
-    )
-
-    md_path, pdf_path = report_generator.generate_report(report)
-
-    return JSONResponse(
-        content={
-            "message": "稽核完成",
-            "total_packages": len(audit_results),
-            "vuln_packages": vuln_count,
-            "report_file": md_path.name,
-            "download_url": f"/api/reports/{md_path.name}",
-            "pdf_download_url": f"/api/reports/{pdf_path.name}",
-        }
-    )
+        # 捕捉未預期的伺服器錯誤，並記錄詳細堆疊追蹤 (Stack Trace)
+        logger.exception("稽核過程發生未預期錯誤: %s", e)
+        raise HTTPException(status_code=500, detail="伺服器內部錯誤")
 
 
 @router.get("/reports")
 async def list_reports():
-    """列出所有已生成的稽核報告"""
+    """
+    列出所有已生成的稽核報告
+    掃描 reports 目錄下的所有 .md 檔案，並按時間倒序排列。
+    """
     reports_dir = settings.REPORTS_DIR
     if not reports_dir.exists():
         return {"reports": []}
 
+    # 取得所有 markdown 報告並進行排序
     files = sorted(reports_dir.glob("*.md"), reverse=True)
     return {
         "reports": [
@@ -174,6 +74,7 @@ async def list_reports():
                 "size": f.stat().st_size,
                 "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
                 "download_url": f"/api/reports/{f.name}",
+                # 檢查對應的 PDF 檔案是否存在，若存在則提供下載連結
                 "pdf_download_url": f"/api/reports/{f.with_suffix('.pdf').name}" if f.with_suffix('.pdf').exists() else None,
             }
             for f in files
@@ -183,18 +84,23 @@ async def list_reports():
 
 @router.get("/reports/{filename}")
 async def download_report(filename: str):
-    """下載指定稽核報告"""
+    """
+    下載指定稽核報告 (Markdown 或 PDF)
+    """
     filepath = settings.REPORTS_DIR / filename
 
+    # 檢查檔案是否存在且確實為檔案
     if not filepath.exists() or not filepath.is_file():
         raise HTTPException(status_code=404, detail="報告不存在")
 
-    # 安全性檢查: 防止路徑穿越
+    # --- 安全性檢查：防止路徑穿越攻擊 (Path Traversal) ---
+    # 確保請求的檔案路徑確實位於 REPORTS_DIR 之下，防止使用 ../ 存取系統敏感檔案
     try:
         filepath.resolve().relative_to(settings.REPORTS_DIR.resolve())
     except ValueError:
         raise HTTPException(status_code=403, detail="禁止存取")
 
+    # 根據副檔名設定適當的 MIME 類型
     media_type = "application/pdf" if filename.endswith(".pdf") else "text/markdown"
 
     return FileResponse(
@@ -206,55 +112,18 @@ async def download_report(filename: str):
 
 @router.delete("/reports")
 async def clear_reports():
-    """清空所有歷史報告"""
+    """
+    清空所有歷史報告 (刪除 .md 與 .pdf 檔案)
+    """
     reports_dir = settings.REPORTS_DIR
     if not reports_dir.exists():
         return {"message": "無報告可清空"}
 
     count = 0
+    # 遍歷並刪除符合條件的報告檔案
     for f in reports_dir.glob("*"):
         if f.is_file() and f.suffix in [".md", ".pdf"]:
             f.unlink()
             count += 1
 
     return {"message": f"已清空 {count} 個檔案"}
-
-
-def _resolve_versions(
-    packages: list[PackageInfo], pypi_data: dict[str, dict]
-) -> dict[str, str]:
-    """解析每個套件的實際版本"""
-    resolved = {}
-    for pkg in packages:
-        if pkg.version:
-            resolved[pkg.name] = pkg.version
-        else:
-            info = pypi_data.get(pkg.name, {})
-            resolved[pkg.name] = info.get("version", "unknown")
-    return resolved
-
-
-def _merge_vulnerabilities(
-    osv_results: dict[str, list],
-    pip_audit_results: dict[str, list],
-) -> dict[str, list]:
-    """合併 OSV 和 pip-audit 的漏洞結果，去重"""
-    merged: dict[str, list] = {}
-
-    # 先加入 OSV 結果
-    for name, vulns in osv_results.items():
-        key = name.lower()
-        merged[key] = list(vulns)
-
-    # 合併 pip-audit 結果
-    for name, vulns in pip_audit_results.items():
-        key = name.lower()
-        if key not in merged:
-            merged[key] = list(vulns)
-        else:
-            existing_ids = {v.vuln_id for v in merged[key]}
-            for v in vulns:
-                if v.vuln_id not in existing_ids:
-                    merged[key].append(v)
-
-    return merged
