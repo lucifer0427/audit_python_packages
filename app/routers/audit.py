@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
@@ -25,10 +25,12 @@ router = APIRouter(prefix="/api", tags=["audit"])
 
 
 @router.post("/audit")
-async def run_audit(file: UploadFile):
+async def run_audit(file: UploadFile, python_version: str = Form(default="")):
     """上傳 requirements.txt 執行資安稽核
 
-    回傳報告檔案下載連結。
+    Args:
+        file: requirements.txt 檔案
+        python_version: 目標 Python 版本 (如 "3.12")，用於篩選 Windows AMD64 安裝檔
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="未提供檔案")
@@ -50,10 +52,10 @@ async def run_audit(file: UploadFile):
     if not packages:
         raise HTTPException(status_code=400, detail="未解析到任何套件")
 
-    # 2. 查詢 PyPI 取得套件資訊
+    # 2. 查詢 PyPI 取得套件資訊 (傳入 python_version 篩選平台安裝檔)
     pypi_data: dict[str, dict] = {}
     for pkg in packages:
-        info = pypi_client.get_package_info(pkg.name, pkg.version)
+        info = pypi_client.get_package_info(pkg.name, pkg.version, python_version or None)
         pypi_data[pkg.name] = info
 
     # 3. 解析版本 (若 requirements 中未指定精確版本，用 PyPI 回傳的)
@@ -108,6 +110,7 @@ async def run_audit(file: UploadFile):
                 snyk_url=snyk_url,
                 snyk_status=snyk_status,
                 download_url=info.get("download_url", ""),
+                download_filename=info.get("download_filename", ""),
             )
         )
 
@@ -118,6 +121,8 @@ async def run_audit(file: UploadFile):
         source_file=file.filename,
         total_packages=len(audit_results),
         vuln_count=vuln_count,
+        python_version=python_version or "未指定",
+        platform="Windows AMD64",
         packages=audit_results,
     )
 

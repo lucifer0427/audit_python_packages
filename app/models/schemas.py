@@ -34,6 +34,7 @@ class AuditResult(BaseModel):
     snyk_url: str = ""  # Snyk 稽核頁面
     snyk_status: str = "Pass"  # "Pass" / "X個漏洞"
     download_url: str = ""  # 離線下載連結
+    download_filename: str = ""  # 下載檔案名稱
 
 
 class AuditReport(BaseModel):
@@ -43,4 +44,6 @@ class AuditReport(BaseModel):
     source_file: str
     total_packages: int
     vuln_count: int
+    python_version: str = ""  # 使用者選擇的 Python 版本
+    platform: str = "win_amd64"  # 目標平台
     packages: list[AuditResult]

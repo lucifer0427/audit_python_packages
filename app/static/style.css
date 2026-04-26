@@ -109,6 +109,30 @@ body {
 }
 .file-remove:hover { color: var(--accent-red); }
 
+.version-selector {
+    margin-top: 1.25rem; padding: 1rem;
+    background: rgba(255,255,255,0.02); border: 1px solid var(--border-color);
+    border-radius: var(--radius); transition: border-color 0.3s;
+}
+.version-selector:hover { border-color: var(--border-glow); }
+.version-label {
+    display: block; font-size: 0.9rem; font-weight: 500;
+    color: var(--text-primary); margin-bottom: 0.5rem;
+}
+.version-hint { color: var(--text-muted); font-size: 0.8rem; font-weight: 400; }
+.version-select {
+    width: 100%; padding: 0.65rem 1rem; border-radius: 8px;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.9rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer; transition: border-color 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.75rem center;
+}
+.version-select:focus { outline: none; border-color: var(--accent-blue); }
+.version-select option { background: var(--bg-secondary); color: var(--text-primary); }
+
 .submit-btn {
     width: 100%; padding: 1rem; border: none; border-radius: var(--radius);
     background: var(--gradient-primary); color: white; font-size: 1rem;

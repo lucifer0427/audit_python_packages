@@ -73,6 +73,7 @@ submitBtn.addEventListener('click', async () => {
     try {
         const formData = new FormData();
         formData.append('file', selectedFile);
+        formData.append('python_version', document.getElementById('pythonVersion').value);
         const response = await fetch('/api/audit', { method: 'POST', body: formData });
         clearInterval(stepInterval);
         if (!response.ok) {

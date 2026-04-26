@@ -40,6 +40,8 @@ def generate_report(report: AuditReport) -> Path:
         source_file=report.source_file,
         total_packages=report.total_packages,
         vuln_count=report.vuln_count,
+        python_version=report.python_version,
+        platform=report.platform,
         packages=report.packages,
     )
 
