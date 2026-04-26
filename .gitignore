@@ -10,8 +10,8 @@ build/
 .venv/
 
 # 報告輸出
-reports/*.md
-
+reports/*
+!reports/.gitkeep
 # IDE
 .vscode/
 .idea/
