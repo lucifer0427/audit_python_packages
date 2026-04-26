@@ -185,6 +185,22 @@ async def download_report(filename: str):
     )
 
 
+@router.delete("/reports")
+async def clear_reports():
+    """清空所有歷史報告"""
+    reports_dir = settings.REPORTS_DIR
+    if not reports_dir.exists():
+        return {"message": "無報告可清空"}
+
+    count = 0
+    for f in reports_dir.glob("*"):
+        if f.is_file() and f.suffix in [".md", ".pdf"]:
+            f.unlink()
+            count += 1
+
+    return {"message": f"已清空 {count} 個檔案"}
+
+
 def _resolve_versions(
     packages: list[PackageInfo], pypi_data: dict[str, dict]
 ) -> dict[str, str]:

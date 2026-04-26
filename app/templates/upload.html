@@ -87,7 +87,10 @@
         </div>
 
         <div class="history-card" id="historyCard">
-            <div class="history-title">📋 歷史報告</div>
+            <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div class="history-title" style="margin-bottom: 0;">📋 歷史報告</div>
+                <button class="clear-btn" id="clearHistoryBtn" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--accent-red); padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;">🗑️ 清空紀錄</button>
+            </div>
             <ul class="history-list" id="historyList">
                 <li class="history-empty">載入中...</li>
             </ul>

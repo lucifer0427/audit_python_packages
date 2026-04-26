@@ -14,6 +14,7 @@ const resultStats = document.getElementById('resultStats');
 const downloadBtn = document.getElementById('downloadBtn');
 const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const viewBtn = document.getElementById('viewBtn');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const errorMessage = document.getElementById('errorMessage');
 
 // Modal Elements
@@ -159,6 +160,20 @@ async function loadHistory() {
             </li>
         `).join('');
     } catch { historyList.innerHTML = '<li class="history-empty">載入失敗</li>'; }
+}
+
+if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', async () => {
+        if (!confirm('確定要清空所有歷史報告嗎？此動作無法復原。')) return;
+        
+        try {
+            const response = await fetch('/api/reports', { method: 'DELETE' });
+            if (!response.ok) throw new Error('清空失敗');
+            loadHistory();
+        } catch (err) {
+            alert(err.message);
+        }
+    });
 }
 
 // ===== 預覽報告 =====
