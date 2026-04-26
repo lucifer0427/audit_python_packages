@@ -12,7 +12,13 @@ const resultIcon = document.getElementById('resultIcon');
 const resultTitle = document.getElementById('resultTitle');
 const resultStats = document.getElementById('resultStats');
 const downloadBtn = document.getElementById('downloadBtn');
+const viewBtn = document.getElementById('viewBtn');
 const errorMessage = document.getElementById('errorMessage');
+
+// Modal Elements
+const modal = document.getElementById('reportModal');
+const modalClose = document.getElementById('modalClose');
+const modalBody = document.getElementById('modalBody');
 
 let selectedFile = null;
 
@@ -109,6 +115,9 @@ function showResult(data) {
     vulnEl.textContent = data.vuln_packages;
     vulnEl.className = 'stat-value ' + (data.vuln_packages > 0 ? 'danger' : 'safe');
     downloadBtn.href = data.download_url;
+    
+    // 綁定檢視按鈕
+    viewBtn.onclick = () => viewReport(data.download_url);
 }
 
 function showError(message) {
@@ -138,10 +147,35 @@ async function loadHistory() {
                     <span class="history-item-name">${r.filename}</span>
                     <span class="history-item-meta">${r.created} · ${formatBytes(r.size)}</span>
                 </div>
-                <a class="history-item-download" href="${r.download_url}" download>下載</a>
+                <div class="history-item-actions">
+                    <button class="history-item-btn" onclick="viewReport('${r.download_url}')">👁️ 檢視</button>
+                    <a class="history-item-btn" href="${r.download_url}" download>📥 下載</a>
+                </div>
             </li>
         `).join('');
     } catch { historyList.innerHTML = '<li class="history-empty">載入失敗</li>'; }
 }
+
+// ===== 預覽報告 =====
+async function viewReport(url) {
+    try {
+        modalBody.innerHTML = '<p style="text-align:center;color:var(--text-muted)">正在載入報告...</p>';
+        modal.classList.add('show');
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('無法載入報告');
+        
+        const markdown = await response.text();
+        // 將 Markdown 轉為 HTML
+        modalBody.innerHTML = marked.parse(markdown);
+    } catch (err) {
+        modalBody.innerHTML = `<p style="color:var(--accent-red)">載入失敗: ${err.message}</p>`;
+    }
+}
+
+modalClose.addEventListener('click', () => modal.classList.remove('show'));
+modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.remove('show');
+});
 
 loadHistory();
