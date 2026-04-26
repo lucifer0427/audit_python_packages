@@ -5,9 +5,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# 安裝系統依賴
+# 安裝系統依賴 (包含 Weasyprint PDF 生成所需的函式庫)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info && \
     rm -rf /var/lib/apt/lists/*
 
 # 安裝 Python 依賴

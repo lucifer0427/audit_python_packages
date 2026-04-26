@@ -12,6 +12,7 @@ const resultIcon = document.getElementById('resultIcon');
 const resultTitle = document.getElementById('resultTitle');
 const resultStats = document.getElementById('resultStats');
 const downloadBtn = document.getElementById('downloadBtn');
+const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const viewBtn = document.getElementById('viewBtn');
 const errorMessage = document.getElementById('errorMessage');
 
@@ -115,6 +116,8 @@ function showResult(data) {
     vulnEl.textContent = data.vuln_packages;
     vulnEl.className = 'stat-value ' + (data.vuln_packages > 0 ? 'danger' : 'safe');
     downloadBtn.href = data.download_url;
+    downloadPdfBtn.href = data.pdf_download_url;
+    downloadPdfBtn.style.display = 'inline-flex';
     
     // 綁定檢視按鈕
     viewBtn.onclick = () => viewReport(data.download_url);
@@ -127,6 +130,7 @@ function showError(message) {
     resultTitle.textContent = '稽核失敗';
     resultStats.style.display = 'none';
     downloadBtn.style.display = 'none';
+    downloadPdfBtn.style.display = 'none';
     errorMessage.style.display = 'block';
     errorMessage.textContent = message;
 }
@@ -149,7 +153,8 @@ async function loadHistory() {
                 </div>
                 <div class="history-item-actions">
                     <button class="history-item-btn" onclick="viewReport('${r.download_url}')">👁️ 檢視</button>
-                    <a class="history-item-btn" href="${r.download_url}" download>📥 下載</a>
+                    <a class="history-item-btn" href="${r.download_url}" download>📥 MD</a>
+                    ${r.pdf_download_url ? `<a class="history-item-btn" href="${r.pdf_download_url}" download>📥 PDF</a>` : ''}
                 </div>
             </li>
         `).join('');

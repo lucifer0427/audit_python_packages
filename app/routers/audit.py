@@ -126,15 +126,16 @@ async def run_audit(file: UploadFile, python_version: str = Form(default="")):
         packages=audit_results,
     )
 
-    report_path = report_generator.generate_report(report)
+    md_path, pdf_path = report_generator.generate_report(report)
 
     return JSONResponse(
         content={
             "message": "稽核完成",
             "total_packages": len(audit_results),
             "vuln_packages": vuln_count,
-            "report_file": report_path.name,
-            "download_url": f"/api/reports/{report_path.name}",
+            "report_file": md_path.name,
+            "download_url": f"/api/reports/{md_path.name}",
+            "pdf_download_url": f"/api/reports/{pdf_path.name}",
         }
     )
 
@@ -156,6 +157,7 @@ async def list_reports():
                     "%Y-%m-%d %H:%M:%S"
                 ),
                 "download_url": f"/api/reports/{f.name}",
+                "pdf_download_url": f"/api/reports/{f.with_suffix('.pdf').name}" if f.with_suffix('.pdf').exists() else None,
             }
             for f in files
         ]
@@ -176,10 +178,12 @@ async def download_report(filename: str):
     except ValueError:
         raise HTTPException(status_code=403, detail="禁止存取")
 
+    media_type = "application/pdf" if filename.endswith(".pdf") else "text/markdown"
+
     return FileResponse(
         path=str(filepath),
         filename=filename,
-        media_type="text/markdown",
+        media_type=media_type,
     )
 
 
