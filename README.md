@@ -1,15 +1,20 @@
 # 🔒 Python Dependency Auditor V1.0
 
-自動化 Python 套件資安稽核工具。透過 Docker 容器化技術，解析 `requirements.txt`，自動採集套件的授權資訊、漏洞狀況、原始碼溯源與離線下載路徑，產出繁體中文 Markdown 稽核報告。
+![Aesthetics](https://img.shields.io/badge/UI-Professional_Light-blue?style=for-the-badge)
+![PDF](https://img.shields.io/badge/Report-PDF_&_Markdown-orange?style=for-the-badge)
+![LLM](https://img.shields.io/badge/AI-Gemma_4_31B-purple?style=for-the-badge)
+
+自動化 Python 套件資安稽核工具。專為企業環境設計，提供專業的淺色 UI 介面，解析 `requirements.txt` 後自動執行漏洞掃描、授權比對，並產出精美的繁體中文 Markdown 與 PDF 稽核報告。
 
 ## ✨ 功能特色
 
-- 📦 **套件解析** — 自動偵測 UTF-8/UTF-16 編碼，解析 requirements.txt
-- ⚖️ **授權掃描** — 透過 PyPI API 取得 License，比對原始碼倉庫
-- 🛡️ **漏洞稽核** — 串接 OSV + pip-audit 雙重掃描，產出 Snyk 連結
-- 📝 **中文翻譯** — 內建 100+ 套件字典，可選用 OpenAI/Gemini AI 翻譯
-- 📊 **Markdown 報告** — Jinja2 模板引擎產出專業稽核報告
-- 🐳 **Docker 部署** — Nginx 反向代理 + FastAPI 後端
+- 🎨 **專業商務 UI** — 全新設計的專業淺色主題 (Light Theme)，介面簡潔且美觀。
+- 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（已內建 Noto Sans CJK TC 中文字型）。
+- 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，提供直連 Snyk 的漏洞詳情。
+- 🧠 **強大 AI 翻譯** — 支援 **Gemma-4 31B** 模型與 **Thinking (High)** 推理模式，精準翻譯套件功能摘要。
+- 📦 **離線部署支援** — 自動篩選符合特定 Python 版本的 Windows AMD64 安裝檔下載連結。
+- 📜 **歷史紀錄管理** — 內建歷史報告清單，支援一鍵檢視、下載與清空紀錄。
+- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，提升穩定性與安全超時處理。
 
 ## 🚀 快速開始
 
@@ -18,7 +23,13 @@
 ```bash
 # 複製並編輯環境變數
 cp .env.example .env
-# 編輯 .env (設定翻譯模式與 API Key)
+```
+
+在 `.env` 中設定你的 API Key：
+```ini
+TRANSLATION_MODE=gemini
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemma-4-31b-it
 ```
 
 ### 2. 啟動服務
@@ -27,57 +38,49 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-### 3. 使用
+### 3. 使用方式
 
-瀏覽器開啟 http://localhost，上傳 `requirements.txt` 即可。
+1. 瀏覽器開啟 `http://localhost`。
+2. 選擇目標 **Python 版本** (用於篩選安裝檔)。
+3. 上傳 `requirements.txt`。
+4. 點擊 **[執行稽核]**，稍待片刻即可預覽 Markdown 或下載 PDF。
 
-或使用 API：
-```bash
-curl -X POST -F "file=@requirements.txt" http://localhost/api/audit
-```
-
-## ⚙️ 環境變數
+## ⚙️ 環境變數說明
 
 | 變數 | 預設值 | 說明 |
 |------|--------|------|
 | `TRANSLATION_MODE` | `builtin` | 翻譯模式: `builtin` / `openai` / `gemini` |
-| `OPENAI_API_KEY` | - | OpenAI API 金鑰 (選用) |
-| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI 模型 |
-| `GEMINI_API_KEY` | - | Gemini API 金鑰 (選用) |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini 模型 |
+| `GEMINI_API_KEY` | - | Gemini/Gemma API 金鑰 |
+| `GEMINI_MODEL` | `gemma-4-31b-it` | 使用的高階 AI 模型 |
+| `TZ` | `Asia/Taipei` | 系統時區設定 (預設台北) |
+| `REQUEST_TIMEOUT` | `30` | 外部 API 請求超時時間 |
 
 ## 📁 專案結構
 
 ```
-├── Dockerfile
-├── docker-compose.yml
-├── nginx/nginx.conf
+├── Dockerfile              # 多階段構建與字型安裝
+├── docker-compose.yml       # 容器編排
+├── nginx/
+│   └── nginx.conf          # 反向代理與 600s 超時配置
 ├── app/
-│   ├── main.py              # FastAPI 入口
-│   ├── config.py             # 設定管理
-│   ├── routers/audit.py      # API 路由
+│   ├── main.py             # FastAPI 入口
+│   ├── static/             # 專業淺色主題 CSS 與互動 JS
+│   ├── templates/          # HTML 介面與 Jinja2 模板
 │   ├── services/
-│   │   ├── parser.py         # 檔案解析
-│   │   ├── pypi_client.py    # PyPI API
-│   │   ├── osv_client.py     # OSV 漏洞查詢
-│   │   ├── pip_audit_runner.py
-│   │   ├── llm_client.py     # LLM 客戶端
-│   │   ├── translator.py     # 翻譯模組
-│   │   └── report_generator.py
-│   ├── templates/
-│   └── static/
-└── tests/
+│   │   ├── llm_client.py    # Gemma-4 Thinking 實作
+│   │   ├── translator.py    # 翻譯排隊與 Fallback 機制
+│   │   ├── report_generator.py # WeasyPrint PDF 渲染引擎
+│   │   └── ...              # 其他稽核邏輯
+│   └── reports/            # 報告產出目錄 (對應 Volume)
 ```
 
-## 🔌 API 端點
+## 🔌 API 端點摘要
 
-| Method | Path | 說明 |
-|--------|------|------|
-| `GET` | `/` | 上傳介面 |
-| `POST` | `/api/audit` | 執行稽核 |
-| `GET` | `/api/reports` | 列出報告 |
-| `GET` | `/api/reports/{filename}` | 下載報告 |
+- `GET /`: 網頁上傳介面
+- `POST /api/audit`: 執行非同步稽核 (支援超時處理)
+- `GET /api/reports`: 取得歷史稽核紀錄
+- `DELETE /api/reports`: 清空所有歷史報告
 
+---
 ## 📄 License
-
-MIT
+MIT © 2026
