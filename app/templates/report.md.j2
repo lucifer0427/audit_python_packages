@@ -21,9 +21,8 @@
 
 ## 🛡️ 漏洞明細
 
-{% set has_vulns = [] %}
-{% for pkg in packages %}
-{% if pkg.vulnerabilities %}
+{% for pkg in packages -%}
+{%- if pkg.vulnerabilities -%}
 ### ⚠️ {{ pkg.name }} ({{ pkg.version }})
 
 | 漏洞 ID | 嚴重性 | 說明 |
@@ -31,8 +30,8 @@
 {% for vuln in pkg.vulnerabilities -%}
 | {{ vuln.vuln_id }} | {{ vuln.severity or '未知' }} | {{ vuln.summary | sanitize | truncate_text(120) }} |
 {% endfor %}
-{% endif %}
-{% endfor %}
+{% endif -%}
+{%- endfor %}
 
 {% if vuln_count == 0 %}
 ✅ **所有套件通過漏洞稽核，未發現已知漏洞。**
