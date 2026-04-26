@@ -74,7 +74,7 @@ def generate_report(report: AuditReport) -> tuple[Path, Path]:
     # 加入基礎 CSS 樣式讓 PDF 表格比較好看
     pdf_css = CSS(string='''
         @page { size: A4 landscape; margin: 1.5cm; }
-        body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #333; }
+        body { font-family: "Noto Sans CJK TC", "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #333; }
         h1, h2, h3 { color: #2c3e50; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }

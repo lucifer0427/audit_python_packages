@@ -14,7 +14,8 @@ RUN apt-get update && \
     libpangocairo-1.0-0 \
     libgdk-pixbuf-xlib-2.0-0 \
     libffi-dev \
-    shared-mime-info && \
+    shared-mime-info \
+    fonts-noto-cjk && \
     rm -rf /var/lib/apt/lists/*
 
 # 安裝 Python 依賴
