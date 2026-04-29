@@ -28,20 +28,22 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     應用程式生命週期管理 (Lifespan)
-    負責在伺服器啟動前初始化資源，並在關閉後釋放資源。
+    負責在伺服器啟動前初始化全域資源 (例如 HTTP 客戶端、快取目錄)，
+    並在伺服器關閉後正確釋放資源，避免記憶體洩漏或連線殘留。
     """
-    # --- 啟動階段 ---
-    # 快取首頁 HTML，避免每次請求都從磁碟讀取
+    # --- 啟動階段 (Startup) ---
+    # 快取首頁 HTML 內容至全域變數，避免每次使用者訪問根路徑時都重新從磁碟讀取--
     global _index_html
     template_path = Path(__file__).parent / "templates" / "upload.html"
     _index_html = template_path.read_text(encoding="utf-8")
 
-    # 確保報告儲存目錄存在
+    # 確保報告儲存目錄及其快取子目錄存在，若不存在則遞迴建立 (mkdir -p)
     settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (settings.REPORTS_DIR / ".cache").mkdir(parents=True, exist_ok=True)
     
-    # 建立一個全域共用的 AsyncClient，避免每個請求都重新建立連線 (Connection Pooling)
-    # 設定統一的超時時間以防止請求無限期等待
+    # 建立一個全域共用的 AsyncClient 實例並掛載到 app.state
+    # 這樣可以實現連線池 (Connection Pooling)，大幅減少建立 TCP/TLS 連線的開銷
+    # 設定統一的超時時間，防止外部 API (如 PyPI, OSV) 響應過慢導致伺服器執行緒被卡死
     client = httpx.AsyncClient(timeout=httpx.Timeout(settings.REQUEST_TIMEOUT))
     app.state.http_client = client
     
@@ -49,10 +51,10 @@ async def lifespan(app: FastAPI):
     logger.info("翻譯模式: %s", settings.TRANSLATION_MODE)
     logger.info("報告目錄: %s", settings.REPORTS_DIR)
     
-    yield # 這裡是伺服器運行期間的分界線
+    yield # 伺服器進入運行狀態，在此處等待停止訊號
     
-    # --- 關閉階段 ---
-    # 正確關閉 HTTP 客戶端，釋放網路資源
+    # --- 關閉階段 (Shutdown) ---
+    # 伺服器停止時，正確關閉共用 HTTP 客戶端，釋放所有開啟的網路連線
     await app.state.http_client.aclose()
     logger.info("應用程式正在關閉...")
 

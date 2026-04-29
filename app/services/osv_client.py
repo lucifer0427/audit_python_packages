@@ -26,13 +26,14 @@ class OSVClient:
         """
         查詢指定套件版本的已知漏洞
         
-        使用內部字典快取相同套件版本，避免重複呼叫外部 API。
+        本方法實作了「快取優先」策略：首先嘗試從磁碟快取讀取結果，若不存在則呼叫外部 OSV API。
+        這能大幅降低對 Google API 的依賴並提升重複掃描時的反應速度。
         """
         cache_key = (name, version)
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # OSV API 要求使用 POST 請求並傳送 JSON Payload
+        # OSV API 要求使用 POST 請求並傳送特定的 JSON Payload
         payload = {
             "package": {
                 "name": name,
@@ -52,25 +53,25 @@ class OSVClient:
             logger.error("OSV 查詢失敗 [%s==%s]: %s", name, version, e)
             return []
 
-        # 提取 API 回傳的漏洞列表
+        # 提取 API 回傳的漏洞列表 (vulns)
         vulns = data.get("vulns", [])
         results = []
 
         for vuln in vulns:
             vuln_id = vuln.get("id", "UNKNOWN")
-            # 優先取 summary，若無則取 details
+            # 優先取 summary，若無則取 details 欄位作為漏洞描述
             summary = vuln.get("summary", vuln.get("details", "無描述"))
 
-            # 解析漏洞的嚴重等級 (CVSS)
+            # 解析漏洞的嚴重等級 (CVSS 分數)
             severity = self._extract_severity(vuln)
 
-            # 為每個漏洞提供 Snyk 快速查詢連結
+            # 為每個漏洞提供 Snyk 快速查詢連結，方便分析人員深入研究漏洞影響
             snyk_url = f"{settings.SNYK_BASE_URL}/{name}"
 
             results.append(
                 VulnerabilityInfo(
                     vuln_id=vuln_id,
-                    summary=summary[:200] if summary else "無描述", # 限制長度防止表格破版
+                    summary=summary[:200] if summary else "無描述", # 限制長度防止 Markdown 表格破版
                     severity=severity,
                     snyk_url=snyk_url,
                 )
@@ -78,7 +79,7 @@ class OSVClient:
 
         logger.info("[%s==%s] 發現 %d 個漏洞", name, version, len(results))
         
-        # 儲存至快取
+        # 將查詢結果儲存至磁碟快取，避免下次相同套件版本重複呼叫 API
         self._cache[cache_key] = results
         return results
 

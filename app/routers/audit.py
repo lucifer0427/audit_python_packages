@@ -32,13 +32,15 @@ async def run_audit(
     """
     上傳 requirements.txt 執行資安稽核
     
-    流程：接收檔案 -> 呼叫 AuditService 執行完整流程 -> 回傳結果摘要
+    此端點負責接收使用者上傳的依賴檔案，並調用 AuditService 執行完整的分析流程。
+    流程包含：讀取檔案 $\to$ 依賴解析 $\to$ 漏洞掃描 $\to$ AI 翻譯 $\to$ 生成報告。
     """
-    # 基本驗證：檢查是否有上傳檔案
+    # 基本驗證：檢查上傳的檔案是否有名稱，防止空檔案提交
     if not file.filename:
         raise HTTPException(status_code=400, detail="未提供檔案")
 
-    # 讀取檔案內容 (非同步)，限制大小防止 OOM
+    # 讀取檔案內容 (非同步)，並實作 1MB 的大小限制
+    # 這是為了防止惡意上傳超大檔案導致伺服器記憶體耗盡 (OOM Attack)
     MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB
     content = await file.read(MAX_FILE_SIZE + 1)
     if len(content) > MAX_FILE_SIZE:
@@ -48,39 +50,41 @@ async def run_audit(
 
     logger.info("收到稽核請求: %s (%d bytes)", file.filename, len(content))
 
-    # 將複雜的業務邏輯委託給 AuditService 處理，保持路由層簡潔
+    # 將複雜的業務邏輯委託給 AuditService 處理，保持路由層 (Controller) 僅負責請求分發與結果回傳
     try:
         # --- 相依性注入 (Dependency Injection) ---
-        # 從 app.state 中獲取共用的 HTTP 客戶端
+        # 從 FastAPI 的 app.state 中獲取在 lifespan 初始化時建立的共用 HTTP 客戶端
         http_client = request.app.state.http_client
         
-        # 實例化各個服務組件
+        # 根據單一職責原則，實例化各個底層服務組件
         osv_client_inst = OSVClient(http_client)
         pypi_client_inst = PyPIClient(http_client)
         
-        # 根據設定建立 LLM 客戶端
+        # 根據設定檔 (settings) 決定使用哪一種 LLM 客戶端 (Gemini / OpenAI) 進行翻譯
         llm_client_inst = create_llm_client(
             settings.TRANSLATION_MODE, 
             api_key=settings.GEMINI_API_KEY if settings.TRANSLATION_MODE == "gemini" else settings.OPENAI_API_KEY,
             model=settings.GEMINI_MODEL if settings.TRANSLATION_MODE == "gemini" else settings.OPENAI_MODEL
         )
         
+        # 翻譯服務封裝了 LLM 客戶端，並提供內建字典作為 Fallback 機制
         translator_inst = TranslatorService(llm_client_inst)
         
-        # 注入依賴項並建立 AuditService 實例
+        # 注入所有必要的依賴項並建立 AuditService 實例，開始執行稽核工作流
         audit_service = AuditService(
             osv_client=osv_client_inst, 
             pypi_client=pypi_client_inst, 
             translator=translator_inst
         )
         
+        # 呼叫核心工作流，回傳包含報告下載連結的摘要結果
         result = await audit_service.run_audit_flow(content, file.filename, python_version)
         return JSONResponse(content=result)
     except ValueError as e:
-        # 捕捉業務邏輯拋出的驗證錯誤 (如解析失敗)
+        # 捕捉由 AuditService 拋出的已知業務驗證錯誤 (例如 requirements 解析失敗)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # 捕捉未預期的伺服器錯誤，並記錄詳細堆疊追蹤 (Stack Trace)
+        # 捕捉未預期的伺服器內部錯誤，記錄詳細堆疊追蹤 (Stack Trace) 以便排查，但對外隱藏細節以維護安全性
         logger.exception("稽核過程發生未預期錯誤: %s", e)
         raise HTTPException(status_code=500, detail="伺服器內部錯誤")
 

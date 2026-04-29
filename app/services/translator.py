@@ -179,15 +179,20 @@ TERM_MAP: dict[str, str] = {
 class TranslatorService:
     """
     翻譯服務類別
-    負責將套件的英文摘要翻譯為繁體中文。
+    負責將套件的英文功能摘要翻譯為繁體中文，提升報告的可讀性與專業感。
     """
-    CHUNK_SIZE = 50  # 防止 LLM Token 超載
-
+    CHUNK_SIZE = 50  # 每批次處理的套件數量，防止 LLM Token 視窗超出上限導致截斷
+    
     def __init__(self, llm_client: LLMClient | None = None):
         self.llm_client = llm_client
 
     async def translate_summaries(self, items: list[dict]) -> dict[str, str]:
         """批次翻譯套件功能摘要
+        
+        本方法實作了三層翻譯策略 (Fallback Strategy)：
+        1. 內建字典 (Built-in)：對最常用的 100+ 套件提供即時且精確的預設翻譯。
+        2. LLM 翻譯 (AI)：對未知套件使用 LLM (Gemini/OpenAI) 進行專業翻譯。
+        3. 規則翻譯 (Rule-based)：若 LLM 失敗或未設定，使用詞彙替換與截斷算法生成初步描述。
         
         Args:
             items: [{"name": "pkg_name", "summary": "English summary"}]
@@ -197,7 +202,7 @@ class TranslatorService:
         """
         results: dict[str, str] = {}
         
-        # 先用內建字典填入已知翻譯
+        # 第一層：先嘗試使用內建字典填入已知翻譯，速度最快且品質最穩定
         pending_items = []
         for item in items:
             name = item["name"].lower()
@@ -206,34 +211,34 @@ class TranslatorService:
             else:
                 pending_items.append(item)
         
-        # 若有未翻譯的且擁有 LLM 客戶端，嘗試 LLM 翻譯
+        # 第二層：若仍有未翻譯套件且 LLM 客戶端已可用，嘗試呼叫 AI 進行批次翻譯
         if pending_items and self.llm_client:
-            # 分片處理 (Chunking)
+            # 分片處理 (Chunking)：將大清單切分為多個小塊，避免單次請求過大被 API 拒絕
             chunks = [pending_items[i : i + self.CHUNK_SIZE] for i in range(0, len(pending_items), self.CHUNK_SIZE)]
             
-            # 平行發送請求
+            # 平行發送請求：利用 asyncio.gather 同時呼叫多個翻譯分片，最大化利用 API 吞吐量
             tasks = [self._try_llm_translate(chunk) for chunk in chunks]
             chunk_results = await asyncio.gather(*tasks)
             
-            # 合併結果
+            # 合併所有分片的翻譯結果至結果字典中
             for res in chunk_results:
                 if res:
                     results.update(res)
             
-            # 更新 pending_items，移除已翻譯的
+            # 更新待處理清單，移除已成功翻譯的項目
             pending_items = [
                 item for item in pending_items
                 if item["name"] not in results
             ]
         
-        # 剩餘的用規則式翻譯
+        # 第三層：最後兜底，使用基於規則的詞彙替換算法，確保每個套件至少有基礎的中文描述
         for item in pending_items:
             results[item["name"]] = self._rule_based_translate(item["summary"])
         
         return results
 
     async def _try_llm_translate(self, items: list[dict]) -> dict[str, str]:
-        """嘗試使用注入的 LLM 客戶端翻譯，失敗則回傳空字典"""
+        """嘗試使用注入的 LLM 客戶端翻譯，若發生 API 錯誤則回傳空字典以便 Fallback"""
         try:
             result = await self.llm_client.translate_summaries(items)
             logger.info("LLM 翻譯完成: %d/%d 個套件", len(result), len(items))
@@ -243,13 +248,17 @@ class TranslatorService:
             return {}
 
     def _rule_based_translate(self, summary: str) -> str:
-        """規則式翻譯: 詞彙替換 + 截斷"""
+        """
+        規則式翻譯算法
+        當沒有 AI 支援時，透過移除冗餘前綴、替換技術關鍵字 (TERM_MAP) 與長度截斷，
+        將英文摘要轉化為可讀的中文片段。
+        """
         if not summary:
             return "Python 套件。"
         
         text = summary.strip()
         
-        # 移除開頭常見的冗餘片語
+        # 移除開頭常見的冗餘英文片語 (例如 "A fast library..." $\to$ "fast library...")
         prefixes_to_remove = [
             r"^A\s+",
             r"^An\s+",
@@ -259,21 +268,22 @@ class TranslatorService:
         for prefix in prefixes_to_remove:
             text = re.sub(prefix, "", text, flags=re.IGNORECASE)
         
-        # 詞彙替換
+        # 詞彙替換：使用 TERM_MAP 將 "library" $\to$ "函式庫", "framework" $\to$ "框架" 等
         for en, zh in TERM_MAP.items():
             text = re.sub(rf"\b{re.escape(en)}\b", zh, text, flags=re.IGNORECASE)
         
-        # 截斷到 30 字以內
+        # 長度截斷：確保結果在 30 字以內，防止在報告表格中過度換行
         if len(text) > 30:
             text = text[:27] + "..."
         
-        # 確保結尾有句號
+        # 格式化：確保結尾具有正確的中文標點符號
         if not text.endswith(("。", ".", "...", "！")):
             text += "。"
         
-        # 如果替換後仍有大量英文殘留，標記為未完全翻譯
+        # 質量檢查：若替換後仍有大量英文殘留 (ASCII 字母比例 > 70%)，標記為 (原文)
         alpha_chars = sum(1 for c in text if c.isascii() and c.isalpha())
         if len(text) > 5 and alpha_chars / max(len(text), 1) > 0.7:
             text = f"{text} (原文)"
         
         return text
+

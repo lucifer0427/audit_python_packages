@@ -5,10 +5,12 @@ import re
 
 def sanitize_for_table(text: str | None) -> str:
     """清洗文字使其適合放入 Markdown 表格欄位
-
-    - 換行符 → <br>
-    - 表格衝突符號 | → /
-    - 移除多餘空白
+    
+    Markdown 表格使用 `|` 作為欄位分隔符，若內容包含該符號將導致表格排版崩潰。
+    本函數執行以下轉換：
+    - 將換行符 \n $\to$ <br> (讓 HTML/PDF 報告能正確顯示換行)
+    - 將表格衝突符號 | $\to$ /
+    - 壓縮多餘的連續空白為單一空格
     """
     if not text:
         return ""
@@ -16,6 +18,7 @@ def sanitize_for_table(text: str | None) -> str:
     result = result.replace("|", "/")
     result = re.sub(r"\s+", " ", result).strip()
     return result
+
 
 
 def truncate(text: str | None, max_len: int = 100) -> str:

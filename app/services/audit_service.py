@@ -41,12 +41,15 @@ class AuditService:
         """
         執行完整的稽核流程工作流
         
+        本方法定義了整個系統的核心流水線 (Pipeline)，將多個單一職責的服務組件串接起來。
         步驟詳述：
-        1. 解析檔案 $\to$ 2. 獲取 PyPI 資訊 $\to$ 3. 版本解析 $\to$ 4. 查詢 OSV 漏洞 $\to$ 
-        5. 執行 pip-audit $\to$ 6. 合併漏洞 $\to$ 7. LLM 翻譯摘要 $\to$ 8. 組裝結果 $\to$ 9. 生成報告
+        1. 解析檔案 $\to$ 2. 補足遞迴相依套件 $\to$ 3. 獲取 PyPI 元數據 $\to$ 4. 版本確定 $\to$ 
+        5. 查詢 OSV 漏洞庫 $\to$ 6. 執行 pip-audit 補充掃描 $\to$ 7. 合併去重漏洞 $\to$ 
+        8. LLM 翻譯功能摘要 $\to$ 9. 組裝結果 $\to$ 10. 生成多格式報告
         """
         
         # 1. 解析 requirements.txt
+        # 將原始 bytes 內容解析為套件清單 (PackageInfo)，此階段會處理編碼偵測與格式清洗
         try:
             original_packages = parser.parse_requirements(file_content)
         except Exception as e:
@@ -57,10 +60,11 @@ class AuditService:
             raise ValueError("未解析到任何套件")
 
         # 1.5 補足相依套件 (Dependency Resolution)
+        # 使用 uv pip compile 模擬環境解析，將「直接依賴」擴展為「完整依賴樹」，確保所有潛在風險套件都被掃描
         from app.services import dependency_resolver
         resolved_reqs_content, resolved_pkgs_list = dependency_resolver.resolve_dependencies(file_content, python_version)
         
-        # 計算新增的套件 (不在原始清單中的套件)
+        # 計算新增的遞迴相依套件 (不在原始清單中的套件)，用於在報告中區分直接依賴與間接依賴
         original_names = {pkg.name.lower() for pkg in original_packages}
         added_packages = [name for name, version in resolved_pkgs_list if name.lower() not in original_names]
         
@@ -71,6 +75,7 @@ class AuditService:
             packages = original_packages
 
         # 2. 查詢 PyPI 取得套件資訊 (非同步併發)
+        # 使用 asyncio.gather 同時發起所有套件的 PyPI 查詢請求，避免循序請求導致的線性延遲
         pypi_tasks = [
             self.pypi_client.get_package_info(pkg.name, pkg.version, python_version or None)
             for pkg in packages
@@ -79,13 +84,15 @@ class AuditService:
         
         pypi_data: dict[str, dict] = {}
         for idx, pkg in enumerate(packages):
-            # pypi_client.get_package_info returns a TypedDict
+            # 儲存 PyPI 回傳的詳細資訊 (如 License, Summary, Source Repo)
             pypi_data[pkg.name] = pypi_results[idx]
 
         # 3. 解析版本
+        # 若原始 requirements 未指定版本，則使用 PyPI 回傳的最新穩定版作為掃描基準
         resolved_packages = self._resolve_versions(packages, pypi_data)
 
         # 4. 查詢 OSV 漏洞 (非同步併發)
+        # 針對確定版本的套件，向 Google OSV API 查詢已知漏洞 (CVE/GHSA)
         osv_tasks = [
             self.osv_client.query_vulnerabilities(name, version)
             for name, version in resolved_packages.items()
@@ -99,13 +106,16 @@ class AuditService:
                 osv_results[name] = vulns
 
         # 5. 執行 pip-audit (補充掃描)
+        # pip-audit 基於本地安裝的環境與 PyPI 數據庫，能發現某些 OSV API 可能遺漏的漏洞，作為雙重保險
         audit_text = resolved_reqs_content.decode("utf-8", errors="replace") if 'resolved_reqs_content' in locals() else file_content.decode("utf-8", errors="replace")
         pip_audit_results = pip_audit_runner.run_pip_audit(audit_text)
 
         # 6. 合併漏洞結果
+        # 將 OSV 與 pip-audit 的結果合併，並根據漏洞 ID (Vuln ID) 進行去重，防止重複報告同一漏洞
         merged_vulns = self._merge_vulnerabilities(osv_results, pip_audit_results)
 
         # 7. 翻譯功能摘要 (非同步)
+        # 將套件的英文摘要翻譯為繁體中文，提升非英文使用者的報告可讀性
         translate_items = [
             {"name": pkg.name, "summary": pypi_data.get(pkg.name, {}).get("summary", "")}
             for pkg in packages
@@ -113,11 +123,13 @@ class AuditService:
         translations = await self.translator.translate_summaries(translate_items)
 
         # 8. 組裝稽核結果
+        # 將所有分散的資訊 (PyPI, OSV, 翻譯, Snyk 連結) 整合為統一的 AuditResult 物件
         audit_results = []
         for idx, pkg in enumerate(packages, 1):
             info = pypi_data.get(pkg.name, {})
             version = resolved_packages.get(pkg.name, pkg.version or "unknown")
             pkg_vulns = merged_vulns.get(pkg.name.lower(), [])
+            # 生成 Snyk 快速查詢連結，方便資安分析人員快速查閱第三方詳細分析
             snyk_url = f"{settings.SNYK_BASE_URL}/{pkg.name}"
 
             snyk_status = f"{len(pkg_vulns)} 個漏洞" if pkg_vulns else "Pass"
@@ -142,6 +154,7 @@ class AuditService:
             )
 
         # 9. 生成報告
+        # 計算總漏洞數，組裝最終報告模型並調用報告生成器產出多種格式檔案 (MD, HTML, PDF)
         vuln_count = sum(1 for r in audit_results if r.vulnerabilities)
         report = AuditReport(
             report_date=datetime.now().isoformat(timespec="seconds"),

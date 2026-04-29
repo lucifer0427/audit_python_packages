@@ -44,7 +44,7 @@ class OpenAIClient(LLMClient):
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         from openai import AsyncOpenAI
-        # 使用非同步客戶端以避免阻塞 FastAPI 事件迴圈
+        # 使用非同步客戶端 (AsyncOpenAI) 以避免阻塞 FastAPI 的事件迴圈 (Event Loop)
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
 
@@ -52,7 +52,8 @@ class OpenAIClient(LLMClient):
         if not items:
             return {}
 
-        # 將多個套件摘要組合成一個請求，減少 API 呼叫次數 (Batching)
+        # 批次處理 (Batching)：將多個套件摘要組合成單一提示詞 (Prompt) 發送給 LLM
+        # 這能大幅降低 API 請求次數，減少網路延遲並降低 Token 成本
         user_content = "\n".join(
             f"- {item['name']}: {item['summary']}" for item in items
         )
@@ -64,14 +65,14 @@ class OpenAIClient(LLMClient):
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_content},
                 ],
-                temperature=0.3, # 低隨機性，確保翻譯結果穩定且專業
-                response_format={"type": "json_object"}, # 強制要求回傳 JSON 格式
+                temperature=0.3, # 設定低隨機性，確保翻譯結果穩定、專業且一致
+                response_format={"type": "json_object"}, # 強制要求 API 回傳合法 JSON 格式，方便後續直接解析
             )
             content = response.choices[0].message.content
             try:
                 return json.loads(content)
             except json.JSONDecodeError as e:
-                # 捕捉 AI 回傳非合法 JSON 的情況
+                # 捕捉 AI 回傳非合法 JSON 的極少數情況
                 logger.error("OpenAI 回傳非法 JSON: %s, 原始內容: %s", e, content)
                 return {}
         except Exception as e:
@@ -93,18 +94,18 @@ class GeminiClient(LLMClient):
             
         from google.genai import types
 
-        # 同樣採用批次處理方式
+        # 同樣採用批次處理方式，減少 API 往返次數
         user_content = "\n".join(
             f"- {item['name']}: {item['summary']}" for item in items
         )
         prompt = f"{SYSTEM_PROMPT}\n\n{user_content}"
 
         try:
-            # 使用 google-genai 的 aio 模組進行非同步呼叫
+            # 使用 google-genai 的 aio 模組進行非同步呼叫，避免阻塞主線程
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 config=types.GenerateContentConfig(
-                    response_mime_type="application/json" # 告知 API 僅需回傳 JSON
+                    response_mime_type="application/json" # 告知 API 僅需回傳 JSON 內容
                 ),
                 contents=prompt,
             )

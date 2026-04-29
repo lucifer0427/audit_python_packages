@@ -56,16 +56,19 @@ class PyPIClient:
         """
         查詢 PyPI 套件詳細資訊
         
+        本方法實作了「快取優先」策略，使用 (名稱, 版本, Python版本) 作為 Key，
+        大幅降低重複查詢 PyPI API 的次數，減少網路延遲。
+        
         Args:
             name: 套件名稱
             version: 指定版本，若為 None 則查詢最新穩定版
-            python_version: 目標 Python 版本，用於篩選 Windows AMD64 的 wheel 檔案
+            python_version: 目標 Python 版本，用於精準篩選 Windows AMD64 的安裝檔 (.whl)
         """
         cache_key = (name, version, python_version)
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # 根據是否指定版本建構 API URL
+        # 根據是否指定版本建構 PyPI JSON API URL
         url = f"{settings.PYPI_BASE_URL}/{name}/json"
         if version:
             url = f"{settings.PYPI_BASE_URL}/{name}/{version}/json"
@@ -76,6 +79,7 @@ class PyPIClient:
             data = resp.json()
         except httpx.HTTPError as e:
             logger.error("PyPI 查詢失敗 [%s]: %s", name, e)
+            # 當 API 查詢失敗時，回傳一個預設的空資料物件，防止整個稽核流程崩潰
             result = PyPIPackageData(
                 version=version or "unknown",
                 summary="",
@@ -89,17 +93,17 @@ class PyPIClient:
         info = data.get("info", {})
         resolved_version = info.get("version", version or "unknown")
 
-        # 1. 授權提取：透過 clean_license 綜合判斷 license 欄位與 classifiers
+        # 1. 授權提取：調用 clean_license 工具函數，綜合判斷 license 欄位、Trove classifiers 與新版 license_expression
         license_type = clean_license(
             info.get("license"),
             info.get("classifiers", []),
             info.get("license_expression"),
         )
 
-        # 2. 原始碼倉庫提取：從 project_urls 中尋找 GitHub/GitLab 等連結
+        # 2. 原始碼倉庫提取：從 project_urls 中使用優先級算法尋找最可能的 GitHub/GitLab 連結
         source_repo = self._extract_source_repo(info)
 
-        # 3. 下載連結提取：依據平台與 Python 版本篩選最佳的 .whl 檔案
+        # 3. 下載連結提取：依據指定平台 (Windows AMD64) 與 Python 版本篩選最佳的 wheel (.whl) 檔案
         download_url, download_filename = self._extract_download_url(
             data, resolved_version, name, python_version
         )
@@ -113,6 +117,7 @@ class PyPIClient:
             download_filename=download_filename,
         )
         
+        # 將結果儲存至磁碟快取，提升後續重複請求的效能
         self._cache[cache_key] = result
         return result
 

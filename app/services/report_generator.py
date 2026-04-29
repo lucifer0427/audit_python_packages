@@ -29,16 +29,19 @@ _env.filters["truncate_text"] = truncate
 def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> tuple[Path, Path, Path, Path | None]:
     """生成 Markdown, HTML 與 PDF 稽核報告，以及更新後的 requirements.txt
     
+    本函數負責將稽核結果物件轉化為可閱讀的最終文件。
+    產出流程：Jinja2 模板渲染 $\to$ Markdown 檔案 $\to$ Markdown 轉 HTML $\to$ HTML 轉 PDF。
+    
     Args:
-        report: 完整稽核報告資料
-        resolved_reqs: 解析後的完整相依性內容
+        report: 包含所有稽核數據的 AuditReport 模型
+        resolved_reqs: 解析後的完整遞迴相依性內容，用於提供下載
     
     Returns:
         (markdown_filepath, html_filepath, pdf_filepath, resolved_reqs_filepath)
     """
+    # 1. 渲染 Markdown
+    # 使用 Jinja2 模板將數據注入 report.md.j2，生成專業格式的 Markdown 文本
     template = _env.get_template("report.md.j2")
-
-
     content = template.render(
         report_date=report.report_date,
         source_file=report.source_file,
@@ -50,14 +53,15 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
         added_packages=report.added_packages,
     )
 
-    # 建立報告檔案
+    # 2. 儲存 Markdown 檔案
     reports_dir = settings.REPORTS_DIR
     reports_dir.mkdir(parents=True, exist_ok=True)
 
+    # 使用時間戳記作為檔名，避免多個使用者上傳時檔案衝突
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{timestamp}_security_audit_report.md"
 
-    # 若同日已有報告，加上序號
+    # 處理極端情況：若同一秒內產生多份報告，則加上序號 (_1, _2 ...)
     filepath = reports_dir / filename
     counter = 1
     while filepath.exists():
@@ -67,7 +71,9 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
 
     filepath.write_text(content, encoding="utf-8")
     
-    # 將 Markdown 轉為 HTML (僅轉換一次，供 HTML 匯出與 PDF 共用)
+    # 3. 轉換為 HTML 格式
+    # 使用 markdown 函式庫將 MD 轉為 HTML，並包裹在包含 GitHub-style CSS 的完整 HTML 頁面中
+    # 這使得報告在瀏覽器中開啟時具有極佳的視覺效果
     html_content = markdown.markdown(content, extensions=["tables", "fenced_code"])
     full_html = f"""<!DOCTYPE html>
 <html>
@@ -89,19 +95,20 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
     html_filepath = reports_dir / html_filename
     html_filepath.write_text(full_html, encoding="utf-8")
 
-    # 儲存解析後的 requirements.txt
+    # 4. 儲存解析後的 requirements.txt
+    # 將 uv 解析出的完整依賴清單儲存為檔案，讓使用者可以下載並直接用於環境部署
     resolved_reqs_path = None
     if resolved_reqs:
-        # 確保使用 .txt 副檔名
         resolved_filename = f"resolved_{filename.replace('.md', '.txt')}"
         resolved_reqs_path = reports_dir / resolved_filename
         resolved_reqs_path.write_bytes(resolved_reqs)
     
-    # 產生 PDF 版本 (重用上方已轉換的 html_content)
+    # 5. 生成 PDF 版本
+    # 利用 WeasyPrint 將 HTML 內容渲染成 PDF。
+    # 特別定義了 pdf_css 以確保 A4 橫向輸出 (landscape)，並配置 Noto Sans CJK TC 字型以防止中文破版。
     pdf_filename = filename.replace(".md", ".pdf")
     pdf_filepath = reports_dir / pdf_filename
     
-    # 加入基礎 CSS 樣式讓 PDF 表格比較好看
     pdf_css = CSS(string='''
         @page { size: A4 landscape; margin: 1.5cm; }
         body { font-family: "Noto Sans CJK TC", "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #333; }
@@ -118,4 +125,5 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
     
     logger.info("報告已生成: MD=%s, HTML=%s, PDF=%s, REQS=%s", filepath.name, html_filepath.name, pdf_filepath.name, resolved_reqs_path.name if resolved_reqs_path else "None")
     return filepath, html_filepath, pdf_filepath, resolved_reqs_path
+
 
