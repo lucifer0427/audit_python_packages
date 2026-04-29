@@ -24,23 +24,47 @@
 
 ```mermaid
 graph TD
-    Start([用戶上傳 requirements.txt]) --> Parse[解析檔案內容]
-    Parse --> Resolve[uv pip compile<br/>補足遞迴相依套件]
-    Resolve --> PyPI[查詢 PyPI Metadata<br/>與精確標籤比對]
-    PyPI --> OSV[查詢 OSV 漏洞資料庫]
-    OSV --> PipAudit[執行 pip-audit 深度掃描]
-    PipAudit --> Merge[合併與去重漏洞結果]
-    Merge --> Translate[AI 翻譯套件功能摘要<br/>Gemini / GPT]
-    Translate --> Generate[產生多格式報告<br/>MD / HTML / PDF]
-    Generate --> End([稽核完成與下載])
+    %% 節點定義
+    Start([<b>📥 用戶上傳</b><br/>requirements.txt])
+    Parse[<b>🔍 解析內容</b><br/>正規表達式提取]
+    Resolve[<b>⚡ uv 引擎解析</b><br/>遞迴補足相依性]
+    PyPI[<b>📦 PyPI 查詢</b><br/>Metadata 與標籤精確匹配]
+    OSV[<b>🛡️ OSV 掃描</b><br/>漏洞資料庫比對]
+    PipAudit[<b>🔎 pip-audit</b><br/>深層相依性稽核]
+    Merge[<b>🔗 結果合併</b><br/>漏洞去重與整合]
+    Translate[<b>🧠 AI 翻譯</b><br/>Gemini/GPT 功能摘要]
+    Generate[<b>📄 報告生成</b><br/>MD / HTML / PDF]
+    End([<b>✅ 稽核完成</b><br/>預覽與下載])
 
-    subgraph "核心稽核引擎"
-    Resolve
-    PyPI
-    OSV
-    PipAudit
-    Merge
+    %% 流程連接
+    Start --> Parse
+    Parse --> Resolve
+    Resolve --> PyPI
+    PyPI --> OSV
+    OSV --> PipAudit
+    PipAudit --> Merge
+    Merge --> Translate
+    Translate --> Generate
+    Generate --> End
+
+    %% 區域標註
+    subgraph "核心稽核引擎 (Core Engine)"
+        Resolve
+        PyPI
+        OSV
+        PipAudit
+        Merge
     end
+
+    %% 樣式設定
+    style Start fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style End fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style Resolve fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style PyPI fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style OSV fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    style PipAudit fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    style Translate fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style Generate fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
 ```
 
 ## 🚀 快速開始
