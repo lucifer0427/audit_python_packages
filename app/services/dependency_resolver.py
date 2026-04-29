@@ -60,6 +60,10 @@ def resolve_dependencies(requirements_content: bytes, python_version: str = "") 
         # 根據名稱排序
         resolved_packages.sort(key=lambda x: x[0].lower())
         
+        if not resolved_packages:
+            logger.warning("uv 未解析出有效套件清單，回傳原內容")
+            return requirements_content, []
+
         # 生成乾淨的 requirements.txt 內容 (移除 uv 的 # via 註釋，回歸標準格式)
         new_reqs_lines = [f"{name}=={version}" for name, version in resolved_packages]
         new_reqs_content = "\n".join(new_reqs_lines).encode("utf-8")

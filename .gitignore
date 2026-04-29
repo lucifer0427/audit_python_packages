@@ -30,3 +30,6 @@ test_reqs.txt
 
 # UV Lock
 uv.lock
+
+# Logs
+server.log

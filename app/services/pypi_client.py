@@ -28,15 +28,23 @@ class PyPIClient:
 
     def _version_to_cp_tags(self, python_version: str) -> list[str]:
         """
-        將 Python 版本字串 (如 "3.12") 轉換為 CPython wheel tag (如 ["cp312"])
+        將 Python 版本字串 (如 "3.12" 或 "3.13t") 轉換為 CPython wheel tag (如 ["cp312", "cp313t"])
         用於後續篩選最適合目標環境的安裝檔案。
         """
         if not python_version:
             return []
-        parts = python_version.split(".")
+        
+        # 處理 3.14t 這種格式
+        has_t = python_version.endswith("t")
+        clean_version = python_version[:-1] if has_t else python_version
+        
+        parts = clean_version.split(".")
         if len(parts) >= 2:
             major, minor = parts[0], parts[1]
-            return [f"cp{major}{minor}"]
+            tag = f"cp{major}{minor}"
+            if has_t:
+                tag += "t"
+            return [tag]
         return []
 
     async def get_package_info(
@@ -164,7 +172,8 @@ class PyPIClient:
             fallback = f"https://pypi.org/project/{name}/{version}/#files"
             return (fallback, "")
 
-        cp_tags = self._version_to_cp_tags(python_version) if python_version else []
+        requested_cp_tags = self._version_to_cp_tags(python_version) if python_version else []
+        is_freethreaded_requested = bool(python_version and "t" in python_version)
 
         # 建立分類桶，用於後續按優先級選擇
         exact_win_amd64 = []
@@ -179,18 +188,42 @@ class PyPIClient:
             fn_lower = filename.lower()
 
             if fn_lower.endswith(".whl"):
-                if "win_amd64" in fn_lower:
-                    if cp_tags and any(tag in fn_lower for tag in cp_tags):
+                # Wheel 檔名格式: {dist}-{ver}(-{build})?-{py}-{abi}-{plat}.whl
+                parts = fn_lower[:-4].split("-")
+                if len(parts) >= 5:
+                    # 正常格式，倒數三個部分分別是 python tag, abi tag, platform tag
+                    py_tags = parts[-3].split(".")
+                    abi_tags = parts[-2].split(".")
+                    platform_tag = parts[-1]
+                elif len(parts) == 4:
+                    # 某些測試或舊格式可能只有 4 部分 (缺少 ABI)
+                    py_tags = parts[-2].split(".")
+                    abi_tags = ["none"]
+                    platform_tag = parts[-1]
+                else:
+                    continue
+
+                # 檢查是否為 freethreaded (ABI 標籤以 't' 結尾，如 cp313t)
+                is_freethreaded_wheel = any(t.endswith("t") and t.startswith("cp") for t in py_tags + abi_tags)
+
+                # 核心修正：如果用戶沒要求 freethreaded，則跳過帶有 't' 標籤的 wheel
+                # 避免 cp314 誤匹配到 cp314t
+                if is_freethreaded_wheel and not is_freethreaded_requested:
+                    continue
+
+                if "win_amd64" in platform_tag:
+                    if requested_cp_tags and any(tag in py_tags or tag in abi_tags for tag in requested_cp_tags):
                         exact_win_amd64.append((url, filename))
                     else:
                         any_win_amd64.append((url, filename))
-                elif "none-any" in fn_lower:
+                elif "none-any" in py_tags or "none-any" in abi_tags:
                     universal_whl.append((url, filename))
                 else:
                     any_whl.append((url, filename))
             elif fn_lower.endswith((".tar.gz", ".zip")):
                 sdist.append((url, filename))
 
+        # 按優先級排序返回
         for candidates in [exact_win_amd64, universal_whl, any_win_amd64, any_whl, sdist]:
             if candidates:
                 url, filename = candidates[0]

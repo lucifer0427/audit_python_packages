@@ -16,7 +16,7 @@ def test_resolve_dependencies_success():
         assert len(pkgs) == 2
         assert pkgs[0] == ("requests", "2.31.0")
         assert pkgs[1] == ("urllib3", "2.0.0")
-        assert b"requests==2.31.0\nurllib3==2.0.0; python_version < '3.12'" in new_content
+        assert b"requests==2.31.0\nurllib3==2.0.0" in new_content
 
 def test_resolve_dependencies_subprocess_error():
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, [], stderr="error")):

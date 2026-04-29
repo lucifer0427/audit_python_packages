@@ -1,4 +1,4 @@
-# 🔒 Python Dependency Auditor V1.0
+# 🔒 Python Dependency Auditor V1.1
 
 ![Aesthetics](https://img.shields.io/badge/UI-Professional_Light-blue?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/Architecture-Dependency_Injection-green?style=for-the-badge)
@@ -12,12 +12,36 @@
 
 - 🎨 **專業商務 UI** — 現代化的專業淺色主題 (Light Theme)，提供直覺的拖拉上傳與整齊的歷史報告管理介面。
 - ⚡ **環境隔離解析 (Environmental Isolation)** — 內建極速 `uv pip compile` 機制，支援跨環境模擬指定 Python 版本的依賴解析，並提供補齊後的新版 requirements 下載。
+- 🎯 **精確的套件標籤匹配 (Precise Tag Matching)** — 修正了 Wheel 標籤匹配邏輯，支援 Python 3.13+ 的 **Free-threading (t 字尾)** 辨識。系統能根據用戶請求精確篩選標準版或 `t` 版安裝檔，避免「平台不相容」錯誤。
 - 🏛️ **相依性注入與持久化快取** — 採用類別實例與 DI 設計，並整合基於 SQLite 的 **`diskcache`** 實現硬碟持久化快取，大幅降低 API 延遲與外部依賴。
 - 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（內建 Noto Sans CJK TC 字型，優化表格排版與防破版處理）。
 - 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，透過 `AuditService` 統一調度與結果去重。
 - 🧠 **健壯的 AI 翻譯與分片** — 支援 **GPT-4o** / **Gemini-2.0** 批次翻譯英文摘要，具備 Chunking 防截斷處理機制，完美應對百個以上套件的大型專案。
 - 🧪 **高測試覆蓋率** — 具備完整的 `pytest` 單元測試套件，涵蓋 API、Clients、與 Mocking，測試覆蓋率達 **74%** 以上。
 - 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，支援 600s 長時間連線處理與 CSP 基礎防護。
+
+## 📊 稽核流程圖
+
+```mermaid
+graph TD
+    Start([用戶上傳 requirements.txt]) --> Parse[解析檔案內容]
+    Parse --> Resolve[uv pip compile<br/>補足遞迴相依套件]
+    Resolve --> PyPI[查詢 PyPI Metadata<br/>與精確標籤比對]
+    PyPI --> OSV[查詢 OSV 漏洞資料庫]
+    OSV --> PipAudit[執行 pip-audit 深度掃描]
+    PipAudit --> Merge[合併與去重漏洞結果]
+    Merge --> Translate[AI 翻譯套件功能摘要<br/>Gemini / GPT]
+    Translate --> Generate[產生多格式報告<br/>MD / HTML / PDF]
+    Generate --> End([稽核完成與下載])
+
+    subgraph "核心稽核引擎"
+    Resolve
+    PyPI
+    OSV
+    PipAudit
+    Merge
+    end
+```
 
 ## 🚀 快速開始
 
@@ -32,7 +56,7 @@ cp .env.example .env
 ```ini
 TRANSLATION_MODE=gemini  # 或 builtin / openai
 GEMINI_API_KEY=your_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
 ### 2. 啟動服務
