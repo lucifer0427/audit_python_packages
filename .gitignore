@@ -15,4 +15,11 @@ reports/*
 # IDE
 .vscode/
 .idea/
-\n# Testing\n.coverage\n.pytest_cache/\n\n# OpenCode\nTASK_FOR_OPENCODE.md\nWORK_REPORT.md
+
+# Testing
+.coverage
+.pytest_cache/
+
+# OpenCode
+TASK_FOR_OPENCODE.md
+WORK_REPORT.md
