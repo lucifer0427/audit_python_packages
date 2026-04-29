@@ -27,18 +27,21 @@ def detect_encoding(raw_bytes: bytes) -> str:
 
 def parse_requirements(content: bytes | str) -> list[PackageInfo]:
     """解析 requirements.txt 內容
-
+    
     Args:
         content: 檔案內容 (bytes 或 str)
-
+    
     Returns:
         解析後的套件清單
     """
+    if content is None:
+        return []
     if isinstance(content, bytes):
         encoding = detect_encoding(content)
         text = content.decode(encoding)
     else:
         text = content
+
 
     packages = []
     for line_num, raw_line in enumerate(text.splitlines(), 1):

@@ -1,9 +1,9 @@
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
-
+from unittest.mock import AsyncMock, patch, MagicMock
+import asyncio
 import pytest
 from fastapi.testclient import TestClient
-
+from fastapi import HTTPException
 from app.main import app
 from app.config import settings
 
@@ -47,11 +47,9 @@ def test_run_audit_success(tmp_path):
     }
     
     with patch("app.routers.audit.AuditService") as MockAuditService:
-        # Setup the mock instance and its run_audit_flow method
         mock_instance = MockAuditService.return_value
         mock_instance.run_audit_flow = AsyncMock(return_value=mock_result)
         
-        # Inject http_client into app state
         from app.main import app
         from unittest.mock import MagicMock
         app.state.http_client = MagicMock()
@@ -83,14 +81,22 @@ def test_download_report_not_found(tmp_path):
         response = client.get("/api/reports/nonexistent.md")
         assert response.status_code == 404
 
-def test_download_report_path_traversal(tmp_path):
+def test_download_report_path_traversal():
+    from app.routers.audit import download_report
+    from fastapi import HTTPException
+    
     with patch("app.routers.audit.settings") as mock_settings:
-        mock_settings.REPORTS_DIR = tmp_path
+        mock_settings.REPORTS_DIR = Path("/tmp/reports")
         
-        # Try to access parent directory
-        response = client.get("/api/reports/../etc/passwd")
-        # Will likely return 403 or 404 depending on how it resolves
-        assert response.status_code in [403, 404]
+        with pytest.raises(HTTPException) as excinfo:
+            # Use a path that escapes /tmp/reports
+            # We must ensure that .resolve() doesn't just return the same path if it doesn't exist
+            # But /etc/passwd exists.
+            asyncio.run(download_report("../../../etc/passwd"))
+            
+        assert excinfo.value.status_code == 403
+        assert "禁止存取" in excinfo.value.detail
+
 
 def test_clear_reports(tmp_path):
     with patch("app.routers.audit.settings") as mock_settings:
@@ -108,3 +114,132 @@ def test_clear_reports(tmp_path):
         
         assert not (tmp_path / "1.md").exists()
         assert (tmp_path / "keep.csv").exists()
+
+def test_upload_no_filename(tmp_path):
+    f = tmp_path / "test.txt"
+    f.write_bytes(b"content")
+    
+    # Use a mock for UploadFile to specifically set filename to empty
+    with patch("fastapi.UploadFile") as MockUploadFile:
+        mock_file = MagicMock()
+        mock_file.filename = ""
+        mock_file.read = AsyncMock(return_value=b"content")
+        
+        # Since the router uses the UploadFile provided by FastAPI, 
+        # we can't easily replace the instance created by FastAPI in the route handler
+        # without mocking the route or using a different approach.
+        # Let's try to use a file with an empty name in TestClient again, 
+        # but ensuring it's sent as a file.
+        pass
+
+    # Alternative: just test it via a direct call to the route function
+    from app.routers.audit import run_audit
+    from fastapi import Request, UploadFile
+    
+    mock_request = MagicMock(spec=Request)
+    mock_request.app.state.http_client = MagicMock()
+    
+    mock_file = MagicMock(spec=UploadFile)
+    mock_file.filename = ""
+    
+    with pytest.raises(HTTPException) as excinfo:
+        import asyncio
+        asyncio.run(run_audit(mock_request, mock_file, "3.12"))
+    
+    assert excinfo.value.status_code == 400
+    assert "未提供檔案" in excinfo.value.detail
+
+
+
+def test_run_audit_value_error(tmp_path):
+    f = tmp_path / "reqs.txt"
+    f.write_bytes(b"requests==2.31.0")
+    
+    with patch("app.routers.audit.AuditService") as MockAuditService:
+        mock_instance = MockAuditService.return_value
+        mock_instance.run_audit_flow = AsyncMock(side_effect=ValueError("Custom Parse Error"))
+        
+        from app.main import app
+        from unittest.mock import MagicMock
+        app.state.http_client = MagicMock()
+        
+        with open(f, "rb") as file:
+            response = client.post("/api/audit", files={"file": ("reqs.txt", file)})
+        
+        assert response.status_code == 400
+        assert "Custom Parse Error" in response.json()["detail"]
+
+def test_run_audit_internal_error(tmp_path):
+    f = tmp_path / "reqs.txt"
+    f.write_bytes(b"requests==2.31.0")
+    
+    with patch("app.routers.audit.AuditService") as MockAuditService:
+        mock_instance = MockAuditService.return_value
+        mock_instance.run_audit_flow = AsyncMock(side_effect=Exception("Critical Error"))
+        
+        from app.main import app
+        from unittest.mock import MagicMock
+        app.state.http_client = MagicMock()
+        
+        with open(f, "rb") as file:
+            response = client.post("/api/audit", files={"file": ("reqs.txt", file)})
+        
+        assert response.status_code == 500
+        assert "伺服器內部錯誤" in response.json()["detail"]
+
+def test_list_reports_no_dir(tmp_path):
+    with patch("app.routers.audit.settings") as mock_settings:
+        mock_settings.REPORTS_DIR = tmp_path / "nonexistent"
+        with patch.object(Path, "exists", return_value=False):
+            response = client.get("/api/reports")
+            assert response.status_code == 200
+            assert response.json() == {"reports": []}
+
+def test_list_reports_full_metadata(tmp_path):
+    with patch("app.routers.audit.settings") as mock_settings:
+        mock_settings.REPORTS_DIR = tmp_path
+        
+        report_name = "audit.md"
+        f_md = tmp_path / report_name
+        f_md.write_text("content")
+        
+        f_html = tmp_path / "audit.html"
+        f_html.write_text("html content")
+        
+        f_pdf = tmp_path / "audit.pdf"
+        f_pdf.write_bytes(b"pdf content")
+        
+        f_res = tmp_path / "resolved_audit.txt"
+        f_res.write_text("resolved content")
+        
+        response = client.get("/api/reports")
+        data = response.json()["reports"][0]
+        
+        assert data["html_download_url"] is not None
+        assert data["pdf_download_url"] is not None
+        assert data["resolved_url"] is not None
+
+def test_download_report_mime_types(tmp_path):
+    with patch("app.routers.audit.settings") as mock_settings:
+        mock_settings.REPORTS_DIR = tmp_path
+        
+        files = {
+            "test.md": "text/markdown",
+            "test.html": "text/html",
+            "test.pdf": "application/pdf"
+        }
+        
+        for name, expected_mime in files.items():
+            f = tmp_path / name
+            f.write_text("content")
+            response = client.get(f"/api/reports/{name}")
+            assert response.status_code == 200
+            assert expected_mime in response.headers["content-type"]
+
+def test_clear_reports_no_dir(tmp_path):
+    with patch("app.routers.audit.settings") as mock_settings:
+        mock_settings.REPORTS_DIR = tmp_path / "ghost"
+        with patch.object(Path, "exists", return_value=False):
+            response = client.delete("/api/reports")
+            assert response.status_code == 200
+            assert "無報告可清空" in response.json()["message"]

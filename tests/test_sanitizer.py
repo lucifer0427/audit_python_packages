@@ -1,7 +1,5 @@
 """sanitizer 模組測試"""
-
 from app.utils.sanitizer import sanitize_for_table, truncate, clean_license
-
 
 class TestSanitizeForTable:
     def test_newlines(self):
@@ -21,7 +19,9 @@ class TestSanitizeForTable:
 
     def test_whitespace(self):
         assert sanitize_for_table("  hello   world  ") == "hello world"
-
+    
+    def test_only_pipes(self):
+        assert sanitize_for_table("|||") == "///"
 
 class TestTruncate:
     def test_short_string(self):
@@ -38,7 +38,10 @@ class TestTruncate:
     def test_exact_length(self):
         text = "a" * 100
         assert truncate(text, 100) == text
-
+    
+    def test_invalid_limit(self):
+        assert truncate("hello", -1) == "h..."
+        assert truncate("hello", None) == "hello"
 
 class TestCleanLicense:
     def test_simple_license(self):
@@ -57,11 +60,29 @@ class TestCleanLicense:
         classifiers = ["License :: OSI Approved :: MIT License"]
         assert clean_license(None, classifiers) == "MIT License"
 
-    def test_long_license_text(self):
-        long_text = "MIT License\n" + "x" * 200
+    def test_regex_patterns(self):
+        # Test all patterns in clean_license (Line 52-67)
+        patterns = [
+            ("MIT License" + " a" * 100, "MIT"),
+            ("Apache License 2.0" + " a" * 100, "Apache"),
+            ("BSD 3-Clause License" + " a" * 100, "BSD"),
+            ("GNU General Public License v3" + " a" * 100, "GNU"),
+            ("GPL-2.0+" + " a" * 100, "GPL"),
+            ("LGPL-2.1" + " a" * 100, "LGPL"),
+            ("MPL-2.0" + " a" * 100, "MPL"),
+            ("ISC License" + " a" * 100, "ISC"),
+            ("Unlicense" + " a" * 100, "Unlicense"),
+        ]
+        for text, expected in patterns:
+            assert expected in clean_license(text)
+
+
+    def test_long_license_no_match(self):
+        # Force enter if len(cleaned) > 100 and no regex match
+        long_text = "This is a very long license that does not match any patterns" + " a" * 50
         result = clean_license(long_text)
-        assert "MIT" in result
         assert len(result) <= 100
+        assert result.endswith("...")
 
     def test_classifier_fallback(self):
         classifiers = [
@@ -70,27 +91,27 @@ class TestCleanLicense:
         ]
         result = clean_license("", classifiers)
         assert result == "BSD License"
+        
+        classifiers_simple = ["License :: MIT"]
+        result_simple = clean_license("", classifiers_simple)
+        assert result_simple == "MIT"
 
     def test_license_expression_priority(self):
-        """license_expression 應優先於 license 和 classifiers"""
         result = clean_license(
-            "MIT",  # 舊欄位
-            ["License :: OSI Approved :: MIT License"],  # classifiers
-            "BSD-3-Clause",  # license_expression (最高優先)
+            "MIT",
+            ["License :: OSI Approved :: MIT License"],
+            "BSD-3-Clause",
         )
         assert result == "BSD-3-Clause"
 
     def test_license_expression_none_fallback(self):
-        """license_expression 為 None 時，fallback 到 license 欄位"""
         result = clean_license("Apache-2.0", None, None)
         assert result == "Apache-2.0"
 
     def test_license_expression_compound(self):
-        """複合 license_expression"""
         result = clean_license(None, None, "Apache-2.0 OR BSD-3-Clause")
         assert result == "Apache-2.0 OR BSD-3-Clause"
 
     def test_all_none(self):
-        """所有來源都沒有 license 資訊"""
         result = clean_license(None, [], None)
         assert result == "N/A"

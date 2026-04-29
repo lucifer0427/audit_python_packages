@@ -6,6 +6,7 @@
 
 import logging
 import re
+import asyncio
 
 from app.config import settings
 from app.services.llm_client import LLMClient
@@ -180,6 +181,7 @@ class TranslatorService:
     翻譯服務類別
     負責將套件的英文摘要翻譯為繁體中文。
     """
+    CHUNK_SIZE = 50  # 防止 LLM Token 超載
 
     def __init__(self, llm_client: LLMClient | None = None):
         self.llm_client = llm_client
@@ -206,14 +208,23 @@ class TranslatorService:
         
         # 若有未翻譯的且擁有 LLM 客戶端，嘗試 LLM 翻譯
         if pending_items and self.llm_client:
-            llm_results = await self._try_llm_translate(pending_items)
-            if llm_results:
-                results.update(llm_results)
-                # 更新 pending_items，移除已翻譯的
-                pending_items = [
-                    item for item in pending_items
-                    if item["name"] not in llm_results
-                ]
+            # 分片處理 (Chunking)
+            chunks = [pending_items[i : i + self.CHUNK_SIZE] for i in range(0, len(pending_items), self.CHUNK_SIZE)]
+            
+            # 平行發送請求
+            tasks = [self._try_llm_translate(chunk) for chunk in chunks]
+            chunk_results = await asyncio.gather(*tasks)
+            
+            # 合併結果
+            for res in chunk_results:
+                if res:
+                    results.update(res)
+            
+            # 更新 pending_items，移除已翻譯的
+            pending_items = [
+                item for item in pending_items
+                if item["name"] not in results
+            ]
         
         # 剩餘的用規則式翻譯
         for item in pending_items:

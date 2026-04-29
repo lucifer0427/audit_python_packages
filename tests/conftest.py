@@ -63,3 +63,13 @@ def sample_osv_response():
             }
         ]
     }
+
+@pytest.fixture(autouse=True)
+def mock_reports_dir(tmp_path):
+    """Override REPORTS_DIR to use a temporary directory for all tests"""
+    from app.config import settings
+    original_dir = settings.REPORTS_DIR
+    settings.REPORTS_DIR = tmp_path / "reports"
+    settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    yield
+    settings.REPORTS_DIR = original_dir

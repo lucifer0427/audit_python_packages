@@ -170,17 +170,15 @@ async function loadHistory() {
                     <span class="history-item-name">${escapeHtml(r.filename)}</span>
                     <span class="history-item-meta">${escapeHtml(r.created)} · ${formatBytes(r.size)}</span>
                 </div>
-                <div class="history-item-actions">
-                    <button class="history-item-btn" onclick="viewReport('${encodeURI(r.download_url)}')">
-                        <span class="icon">👁️</span><span class="text">檢視</span>
-                    </button>
-                    <a class="history-item-btn" href="${encodeURI(r.download_url)}" download>
-                        <span class="icon">📥</span><span class="text">MD</span>
-                    </a>
-                    ${r.html_download_url ? `<a class="history-item-btn" href="${encodeURI(r.html_download_url)}" download><span class="icon">📥</span><span class="text">HTML</span></a>` : ''}
-                    ${r.pdf_download_url ? `<a class="history-item-btn" href="${encodeURI(r.pdf_download_url)}" download><span class="icon">📥</span><span class="text">PDF</span></a>` : ''}
-                    ${r.resolved_url ? `<a class="history-item-btn" href="${encodeURI(r.resolved_url)}" download><span class="icon">📥</span><span class="text">REQS</span></a>` : ''}
-                </div>
+                                <div class="history-item-actions">
+                                    <a class="history-item-btn" href="${encodeURI(r.download_url)}" download>
+                                        <span class="icon">📥</span><span class="text">MD</span>
+                                    </a>
+                                    ${r.html_download_url ? `<a class="history-item-btn" href="${encodeURI(r.html_download_url)}" download><span class="icon">📥</span><span class="text">HTML</span></a>` : ''}
+                                    ${r.pdf_download_url ? `<a class="history-item-btn" href="${encodeURI(r.pdf_download_url)}" download><span class="icon">📥</span><span class="text">PDF</span></a>` : ''}
+                                    ${r.resolved_url ? `<a class="history-item-btn" href="${encodeURI(r.resolved_url)}" download><span class="icon">📥</span><span class="text">REQS</span></a>` : ''}
+                                </div>
+
             </li>
         `).join('');
     } catch { historyList.innerHTML = '<li class="history-empty">載入失敗</li>'; }
@@ -216,6 +214,7 @@ async function viewReport(url) {
         modalBody.innerHTML = `<p style="color:var(--accent-red)">載入失敗: ${err.message}</p>`;
     }
 }
+window.viewReport = viewReport;
 
 modalClose.addEventListener('click', () => modal.classList.remove('show'));
 modal.addEventListener('click', (e) => {

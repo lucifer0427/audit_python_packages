@@ -4,6 +4,7 @@
 
 import logging
 import httpx
+import diskcache
 
 from app.config import settings
 from app.models.schemas import VulnerabilityInfo
@@ -18,7 +19,8 @@ class OSVClient:
 
     def __init__(self, client: httpx.AsyncClient):
         self._client = client
-        self._cache: dict[tuple[str, str], list[VulnerabilityInfo]] = {}
+        # 使用持久化快取，存放在報告目錄下的 .cache/osv
+        self._cache = diskcache.Cache(settings.REPORTS_DIR / ".cache" / "osv")
 
     async def query_vulnerabilities(self, name: str, version: str) -> list[VulnerabilityInfo]:
         """

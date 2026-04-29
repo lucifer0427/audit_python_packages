@@ -10,13 +10,17 @@ async def test_query_vulnerabilities_found(httpx_mock, mock_http_client, sample_
     
     httpx_mock.add_response(json=sample_osv_response)
     
-    vulns = await client.query_vulnerabilities("requests", "2.31.0")
+    # First call - populates cache
+    vulns1 = await client.query_vulnerabilities("requests", "2.31.0")
+    # Second call - should hit cache
+    vulns2 = await client.query_vulnerabilities("requests", "2.31.0")
     
-    assert len(vulns) == 1
-    assert vulns[0].vuln_id == "GHSA-j8r2-6x86-q33q"
-    assert vulns[0].summary == "Potential denial of service in Requests"
-    assert vulns[0].severity == "MODERATE"
-    assert "snyk.io" in vulns[0].snyk_url
+    assert len(vulns1) == 1
+    assert vulns1 == vulns2
+    assert vulns1[0].vuln_id == "GHSA-j8r2-6x86-q33q"
+    assert vulns1[0].summary == "Potential denial of service in Requests"
+    assert vulns1[0].severity == "MODERATE"
+    assert "snyk.io" in vulns1[0].snyk_url
 
 @pytest.mark.asyncio
 async def test_query_vulnerabilities_not_found(httpx_mock, mock_http_client):

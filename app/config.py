@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # === 路徑設定 ===
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
-    REPORTS_DIR: Path = BASE_DIR / "reports"
+    REPORTS_DIR: Path = Path("/tmp/python_auditor_reports")
 
     # === 外部 API ===
     PYPI_BASE_URL: str = "https://pypi.org/pypi"

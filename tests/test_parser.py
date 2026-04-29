@@ -1,7 +1,5 @@
 """parser 模組測試"""
-
 from app.services.parser import parse_requirements, detect_encoding
-
 
 class TestDetectEncoding:
     def test_utf8(self):
@@ -15,7 +13,6 @@ class TestDetectEncoding:
 
     def test_utf16_be(self):
         assert detect_encoding(b"\xfe\xff\x00h\x00e") == "utf-16-be"
-
 
 class TestParseRequirements:
     def test_basic_package(self):
@@ -84,3 +81,20 @@ class TestParseRequirements:
         result = parse_requirements("package>=1.0,<2.0\n")
         assert result[0].name == "package"
         assert result[0].version_spec == ">=1.0"
+
+    def test_none_input(self):
+        result = parse_requirements(None)
+        assert result == []
+
+    def test_empty_input(self):
+        result = parse_requirements("")
+        assert result == []
+
+    def test_invalid_package_names(self):
+        # Invalid name with version (Line 90-91)
+        result = parse_requirements("!invalid==1.0\n")
+        assert len(result) == 0
+        
+        # Invalid name without version (Line 102-103)
+        result = parse_requirements("!!!invalid\n")
+        assert len(result) == 0

@@ -48,21 +48,27 @@ class AuditService:
         
         # 1. 解析 requirements.txt
         try:
-            packages = parser.parse_requirements(file_content)
+            original_packages = parser.parse_requirements(file_content)
         except Exception as e:
             logger.error("解析 requirements 失敗: %s", e)
             raise ValueError(f"檔案解析失敗: {e}")
 
-        if not packages:
+        if not original_packages:
             raise ValueError("未解析到任何套件")
 
         # 1.5 補足相依套件 (Dependency Resolution)
         from app.services import dependency_resolver
         resolved_reqs_content, resolved_pkgs_list = dependency_resolver.resolve_dependencies(file_content, python_version)
         
+        # 計算新增的套件 (不在原始清單中的套件)
+        original_names = {pkg.name.lower() for pkg in original_packages}
+        added_packages = [name for name, version in resolved_pkgs_list if name.lower() not in original_names]
+        
         if resolved_pkgs_list:
             packages = [PackageInfo(name=n, version=v) for n, v in resolved_pkgs_list]
-            logger.info("已將相依套件補足，目前總數: %d", len(packages))
+            logger.info("已將相依套件補足，目前總數: %d, 新增: %d", len(packages), len(added_packages))
+        else:
+            packages = original_packages
 
         # 2. 查詢 PyPI 取得套件資訊 (非同步併發)
         pypi_tasks = [
@@ -145,6 +151,7 @@ class AuditService:
             python_version=python_version or "未指定",
             platform="Windows AMD64",
             packages=audit_results,
+            added_packages=added_packages,
         )
 
         md_path, html_path, pdf_path, resolved_path = report_generator.generate_report(

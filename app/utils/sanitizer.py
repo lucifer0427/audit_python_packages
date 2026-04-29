@@ -22,7 +22,7 @@ def truncate(text: str | None, max_len: int = 100) -> str:
     """超長字串截斷處理"""
     if not text:
         return ""
-    if len(text) <= max_len:
+    if max_len is None or len(text) <= max_len:
         return text
     return text[: max_len - 3] + "..."
 
@@ -54,8 +54,8 @@ def clean_license(
                 r"(Apache\s*(?:License)?\s*(?:,?\s*Version)?\s*2\.0)",
                 r"(BSD\s*\d?-?(?:Clause)?\s*License)",
                 r"(GNU\s*(?:General|Lesser)?\s*Public\s*License\s*v?\d?)",
-                r"(GPL-?\d?(?:\.\d)?(?:\+)?)",
                 r"(LGPL-?\d?(?:\.\d)?(?:\+)?)",
+                r"(GPL-?\d?(?:\.\d)?(?:\+)?)",
                 r"(MPL-?\d?(?:\.\d)?)",
                 r"(ISC\s*License)",
                 r"(Unlicense)",

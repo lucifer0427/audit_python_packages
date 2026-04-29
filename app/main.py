@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
 
     # 確保報告儲存目錄存在
     settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (settings.REPORTS_DIR / ".cache").mkdir(parents=True, exist_ok=True)
     
     # 建立一個全域共用的 AsyncClient，避免每個請求都重新建立連線 (Connection Pooling)
     # 設定統一的超時時間以防止請求無限期等待

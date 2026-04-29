@@ -5,6 +5,7 @@
 
 import logging
 import re
+import diskcache
 
 import httpx
 
@@ -22,7 +23,8 @@ class PyPIClient:
 
     def __init__(self, client: httpx.AsyncClient):
         self._client = client
-        self._cache: dict[tuple[str, str | None, str | None], PyPIPackageData] = {}
+        # 使用持久化快取，存放在報告目錄下的 .cache/pypi
+        self._cache = diskcache.Cache(settings.REPORTS_DIR / ".cache" / "pypi")
 
     def _version_to_cp_tags(self, python_version: str) -> list[str]:
         """

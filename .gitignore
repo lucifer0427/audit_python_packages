@@ -23,3 +23,10 @@ reports/*
 # OpenCode
 TASK_FOR_OPENCODE.md
 WORK_REPORT.md
+
+# Local test scripts
+e2e_test.py
+test_reqs.txt
+
+# UV Lock
+uv.lock
