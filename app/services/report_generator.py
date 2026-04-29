@@ -26,16 +26,18 @@ _env.filters["sanitize"] = sanitize_for_table
 _env.filters["truncate_text"] = truncate
 
 
-def generate_report(report: AuditReport) -> tuple[Path, Path]:
-    """生成 Markdown 與 PDF 稽核報告
-
+def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> tuple[Path, Path, Path, Path | None]:
+    """生成 Markdown, HTML 與 PDF 稽核報告，以及更新後的 requirements.txt
+    
     Args:
         report: 完整稽核報告資料
-
+        resolved_reqs: 解析後的完整相依性內容
+    
     Returns:
-        (markdown_filepath, pdf_filepath)
+        (markdown_filepath, html_filepath, pdf_filepath, resolved_reqs_filepath)
     """
     template = _env.get_template("report.md.j2")
+
 
     content = template.render(
         report_date=report.report_date,
@@ -45,13 +47,14 @@ def generate_report(report: AuditReport) -> tuple[Path, Path]:
         python_version=report.python_version,
         platform=report.platform,
         packages=report.packages,
+        added_packages=report.added_packages,
     )
 
     # 建立報告檔案
     reports_dir = settings.REPORTS_DIR
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{timestamp}_security_audit_report.md"
 
     # 若同日已有報告，加上序號
@@ -64,12 +67,39 @@ def generate_report(report: AuditReport) -> tuple[Path, Path]:
 
     filepath.write_text(content, encoding="utf-8")
     
-    # 產生 PDF 版本
+    # 將 Markdown 轉為 HTML (僅轉換一次，供 HTML 匯出與 PDF 共用)
+    html_content = markdown.markdown(content, extensions=["tables", "fenced_code"])
+    full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Security Audit Report</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css">
+    <style>
+        body {{ box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }}
+        .markdown-body {{ box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }}
+        @media print {{ .markdown-body {{ padding: 0; }} }}
+    </style>
+</head>
+<body class="markdown-body">
+    {html_content}
+</body>
+</html>"""
+    html_filename = filename.replace(".md", ".html")
+    html_filepath = reports_dir / html_filename
+    html_filepath.write_text(full_html, encoding="utf-8")
+
+    # 儲存解析後的 requirements.txt
+    resolved_reqs_path = None
+    if resolved_reqs:
+        # 確保使用 .txt 副檔名
+        resolved_filename = f"resolved_{filename.replace('.md', '.txt')}"
+        resolved_reqs_path = reports_dir / resolved_filename
+        resolved_reqs_path.write_bytes(resolved_reqs)
+    
+    # 產生 PDF 版本 (重用上方已轉換的 html_content)
     pdf_filename = filename.replace(".md", ".pdf")
     pdf_filepath = reports_dir / pdf_filename
-    
-    # 將 Markdown 轉為 HTML (啟用 tables 等擴充套件)
-    html_content = markdown.markdown(content, extensions=["tables", "fenced_code"])
     
     # 加入基礎 CSS 樣式讓 PDF 表格比較好看
     pdf_css = CSS(string='''
@@ -85,6 +115,7 @@ def generate_report(report: AuditReport) -> tuple[Path, Path]:
     ''')
     
     HTML(string=html_content).write_pdf(pdf_filepath, stylesheets=[pdf_css])
+    
+    logger.info("報告已生成: MD=%s, HTML=%s, PDF=%s, REQS=%s", filepath.name, html_filepath.name, pdf_filepath.name, resolved_reqs_path.name if resolved_reqs_path else "None")
+    return filepath, html_filepath, pdf_filepath, resolved_reqs_path
 
-    logger.info("報告已生成: MD=%s, PDF=%s", filepath.name, pdf_filepath.name)
-    return filepath, pdf_filepath

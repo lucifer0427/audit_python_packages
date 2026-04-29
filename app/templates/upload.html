@@ -6,7 +6,7 @@
     <title>Python Dependency Auditor</title>
     <meta name="description" content="自動化 Python 套件資安稽核工具">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css" integrity="sha384-6m5l3OirEPBJwQnP92C6vJDl4iWEkZguzrbksDH3xivPSy/YH52aIdaxpQpFMllj" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -81,7 +81,9 @@
             <div class="action-buttons">
                 <button class="view-btn" id="viewBtn">👁️ 檢視報告</button>
                 <a class="download-btn" id="downloadBtn" href="#" download>📥 下載 (.md)</a>
+                <a class="download-btn" id="downloadHtmlBtn" href="#" download style="display:none">📥 下載 (.html)</a>
                 <a class="download-btn" id="downloadPdfBtn" href="#" download>📥 下載 (.pdf)</a>
+                <a class="download-btn" id="downloadReqBtn" href="#" download style="display:none">📥 新 requirements.txt</a>
             </div>
             <div class="error-message" id="errorMessage"></div>
         </div>
@@ -110,7 +112,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
     <script src="/static/app.js?v=2"></script>
 </body>
 </html>

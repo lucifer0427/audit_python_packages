@@ -1,0 +1,22 @@
+# === Build Context 排除 ===
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+.venv/
+.pytest_cache/
+tests/
+reports/*
+!reports/.gitkeep
+*.md
+LICENSE
+.vscode/
+.idea/
+.gemini/

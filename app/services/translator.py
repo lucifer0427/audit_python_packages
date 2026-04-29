@@ -1,6 +1,6 @@
-"""功能摘要翻譯模組
-
-根據 TRANSLATION_MODE 設定，選擇 builtin / OpenAI / Gemini 進行翻譯。
+"""功能摘要翻譯服務
+ 
+根據設定選擇 builtin / OpenAI / Gemini 進行翻譯。
 失敗時自動 fallback 到 builtin 模式。
 """
 
@@ -8,7 +8,7 @@ import logging
 import re
 
 from app.config import settings
-from app.services.llm_client import create_llm_client
+from app.services.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ BUILTIN_TRANSLATIONS: dict[str, str] = {
     "mkdocs": "以 Markdown 撰寫的專案文件產生器。",
     "jsonschema": "JSON Schema 驗證函式庫。",
     "pyjwt": "JSON Web Token 編碼與解碼函式庫。",
-    "python-jose": "JOSE 標準實作，含 JWT、JWS、JWE 支援。",
+    "python-jose": "JOSE 標準實作，含 JWT、JWS, JWE 支援。",
     "passlib": "密碼雜湊處理函式庫，支援多種演算法。",
     "bcrypt": "bcrypt 密碼雜湊函式庫。",
     "python-dotenv": "從 .env 檔案載入環境變數。",
@@ -121,7 +121,7 @@ BUILTIN_TRANSLATIONS: dict[str, str] = {
     "google-genai": "Google Gemini AI API 官方 Python 客戶端。",
     "pydantic-settings": "Pydantic 設定管理擴充，支援環境變數載入。",
 }
-
+ 
 # ===== 規則式翻譯用的詞彙對照表 =====
 TERM_MAP: dict[str, str] = {
     "library": "函式庫",
@@ -173,105 +173,96 @@ TERM_MAP: dict[str, str] = {
     "bindings": "綁定",
     "integration": "整合",
 }
-
-
-async def translate_summaries(items: list[dict]) -> dict[str, str]:
-    """批次翻譯套件功能摘要
-
-    Args:
-        items: [{"name": "pkg_name", "summary": "English summary"}]
-
-    Returns:
-        {"pkg_name": "中文摘要"}
+ 
+ 
+class TranslatorService:
     """
-    results: dict[str, str] = {}
+    翻譯服務類別
+    負責將套件的英文摘要翻譯為繁體中文。
+    """
 
-    # 先用內建字典填入已知翻譯
-    pending_items = []
-    for item in items:
-        name = item["name"].lower()
-        if name in BUILTIN_TRANSLATIONS:
-            results[item["name"]] = BUILTIN_TRANSLATIONS[name]
-        else:
-            pending_items.append(item)
+    def __init__(self, llm_client: LLMClient | None = None):
+        self.llm_client = llm_client
 
-    # 若有未翻譯的且設定為 LLM 模式，嘗試 LLM 翻譯
-    if pending_items and settings.TRANSLATION_MODE != "builtin":
-        llm_results = await _try_llm_translate(pending_items)
-        if llm_results:
-            results.update(llm_results)
-            # 更新 pending_items，移除已翻譯的
-            pending_items = [
-                item for item in pending_items
-                if item["name"] not in llm_results
-            ]
+    async def translate_summaries(self, items: list[dict]) -> dict[str, str]:
+        """批次翻譯套件功能摘要
+        
+        Args:
+            items: [{"name": "pkg_name", "summary": "English summary"}]
+        
+        Returns:
+            {"pkg_name": "中文摘要"}
+        """
+        results: dict[str, str] = {}
+        
+        # 先用內建字典填入已知翻譯
+        pending_items = []
+        for item in items:
+            name = item["name"].lower()
+            if name in BUILTIN_TRANSLATIONS:
+                results[item["name"]] = BUILTIN_TRANSLATIONS[name]
+            else:
+                pending_items.append(item)
+        
+        # 若有未翻譯的且擁有 LLM 客戶端，嘗試 LLM 翻譯
+        if pending_items and self.llm_client:
+            llm_results = await self._try_llm_translate(pending_items)
+            if llm_results:
+                results.update(llm_results)
+                # 更新 pending_items，移除已翻譯的
+                pending_items = [
+                    item for item in pending_items
+                    if item["name"] not in llm_results
+                ]
+        
+        # 剩餘的用規則式翻譯
+        for item in pending_items:
+            results[item["name"]] = self._rule_based_translate(item["summary"])
+        
+        return results
 
-    # 剩餘的用規則式翻譯
-    for item in pending_items:
-        results[item["name"]] = _rule_based_translate(item["summary"])
-
-    return results
-
-
-async def _try_llm_translate(items: list[dict]) -> dict[str, str]:
-    """嘗試使用 LLM 翻譯，失敗則回傳空字典 (fallback 到 builtin)"""
-    mode = settings.TRANSLATION_MODE
-
-    kwargs = {}
-    if mode == "openai":
-        if not settings.OPENAI_API_KEY:
-            logger.warning("OPENAI_API_KEY 未設定，fallback 到 builtin 模式")
+    async def _try_llm_translate(self, items: list[dict]) -> dict[str, str]:
+        """嘗試使用注入的 LLM 客戶端翻譯，失敗則回傳空字典"""
+        try:
+            result = await self.llm_client.translate_summaries(items)
+            logger.info("LLM 翻譯完成: %d/%d 個套件", len(result), len(items))
+            return result
+        except Exception as e:
+            logger.error("LLM 翻譯失敗: %s，fallback 到 builtin 模式", e)
             return {}
-        kwargs = {"api_key": settings.OPENAI_API_KEY, "model": settings.OPENAI_MODEL}
-    elif mode == "gemini":
-        if not settings.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY 未設定，fallback 到 builtin 模式")
-            return {}
-        kwargs = {"api_key": settings.GEMINI_API_KEY, "model": settings.GEMINI_MODEL}
-    else:
-        return {}
 
-    client = create_llm_client(mode, **kwargs)
-    if not client:
-        logger.warning("LLM 客戶端建立失敗，fallback 到 builtin 模式")
-        return {}
-
-    try:
-        result = await client.translate_summaries(items)
-        logger.info("LLM 翻譯完成: %d/%d 個套件", len(result), len(items))
-        return result
-    except Exception as e:
-        logger.error("LLM 翻譯失敗: %s，fallback 到 builtin 模式", e)
-        return {}
-
-
-def _rule_based_translate(summary: str) -> str:
-    """規則式翻譯: 詞彙替換 + 截斷"""
-    if not summary:
-        return "Python 套件。"
-
-    text = summary.strip()
-
-    # 移除開頭常見的冗餘片語
-    prefixes_to_remove = [
-        r"^A\s+",
-        r"^An\s+",
-        r"^The\s+",
-        r"^Python\s+",
-    ]
-    for prefix in prefixes_to_remove:
-        text = re.sub(prefix, "", text, flags=re.IGNORECASE)
-
-    # 詞彙替換
-    for en, zh in TERM_MAP.items():
-        text = re.sub(rf"\b{re.escape(en)}\b", zh, text, flags=re.IGNORECASE)
-
-    # 截斷到 30 字以內
-    if len(text) > 30:
-        text = text[:27] + "..."
-
-    # 確保結尾有句號
-    if not text.endswith(("。", ".", "...", "！")):
-        text += "。"
-
-    return text
+    def _rule_based_translate(self, summary: str) -> str:
+        """規則式翻譯: 詞彙替換 + 截斷"""
+        if not summary:
+            return "Python 套件。"
+        
+        text = summary.strip()
+        
+        # 移除開頭常見的冗餘片語
+        prefixes_to_remove = [
+            r"^A\s+",
+            r"^An\s+",
+            r"^The\s+",
+            r"^Python\s+",
+        ]
+        for prefix in prefixes_to_remove:
+            text = re.sub(prefix, "", text, flags=re.IGNORECASE)
+        
+        # 詞彙替換
+        for en, zh in TERM_MAP.items():
+            text = re.sub(rf"\b{re.escape(en)}\b", zh, text, flags=re.IGNORECASE)
+        
+        # 截斷到 30 字以內
+        if len(text) > 30:
+            text = text[:27] + "..."
+        
+        # 確保結尾有句號
+        if not text.endswith(("。", ".", "...", "！")):
+            text += "。"
+        
+        # 如果替換後仍有大量英文殘留，標記為未完全翻譯
+        alpha_chars = sum(1 for c in text if c.isascii() and c.isalpha())
+        if len(text) > 5 and alpha_chars / max(len(text), 1) > 0.7:
+            text = f"{text} (原文)"
+        
+        return text

@@ -12,7 +12,9 @@ const resultIcon = document.getElementById('resultIcon');
 const resultTitle = document.getElementById('resultTitle');
 const resultStats = document.getElementById('resultStats');
 const downloadBtn = document.getElementById('downloadBtn');
+const downloadHtmlBtn = document.getElementById('downloadHtmlBtn');
 const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+const downloadReqBtn = document.getElementById('downloadReqBtn');
 const viewBtn = document.getElementById('viewBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const errorMessage = document.getElementById('errorMessage');
@@ -23,6 +25,13 @@ const modalClose = document.getElementById('modalClose');
 const modalBody = document.getElementById('modalBody');
 
 let selectedFile = null;
+
+// HTML entity escape — 防止 XSS
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
 
 // ===== 拖拉上傳 =====
 dropZone.addEventListener('click', () => fileInput.click());
@@ -117,8 +126,17 @@ function showResult(data) {
     vulnEl.textContent = data.vuln_packages;
     vulnEl.className = 'stat-value ' + (data.vuln_packages > 0 ? 'danger' : 'safe');
     downloadBtn.href = data.download_url;
+    downloadHtmlBtn.href = data.html_download_url;
+    downloadHtmlBtn.style.display = 'inline-flex';
     downloadPdfBtn.href = data.pdf_download_url;
     downloadPdfBtn.style.display = 'inline-flex';
+    
+    if (data.resolved_requirements_url) {
+        downloadReqBtn.href = data.resolved_requirements_url;
+        downloadReqBtn.style.display = 'inline-flex';
+    } else {
+        downloadReqBtn.style.display = 'none';
+    }
     
     // 綁定檢視按鈕
     viewBtn.onclick = () => viewReport(data.download_url);
@@ -149,13 +167,19 @@ async function loadHistory() {
         historyList.innerHTML = data.reports.map(r => `
             <li class="history-item">
                 <div class="history-item-info">
-                    <span class="history-item-name">${r.filename}</span>
-                    <span class="history-item-meta">${r.created} · ${formatBytes(r.size)}</span>
+                    <span class="history-item-name">${escapeHtml(r.filename)}</span>
+                    <span class="history-item-meta">${escapeHtml(r.created)} · ${formatBytes(r.size)}</span>
                 </div>
                 <div class="history-item-actions">
-                    <button class="history-item-btn" onclick="viewReport('${r.download_url}')">👁️ 檢視</button>
-                    <a class="history-item-btn" href="${r.download_url}" download>📥 MD</a>
-                    ${r.pdf_download_url ? `<a class="history-item-btn" href="${r.pdf_download_url}" download>📥 PDF</a>` : ''}
+                    <button class="history-item-btn" onclick="viewReport('${encodeURI(r.download_url)}')">
+                        <span class="icon">👁️</span><span class="text">檢視</span>
+                    </button>
+                    <a class="history-item-btn" href="${encodeURI(r.download_url)}" download>
+                        <span class="icon">📥</span><span class="text">MD</span>
+                    </a>
+                    ${r.html_download_url ? `<a class="history-item-btn" href="${encodeURI(r.html_download_url)}" download><span class="icon">📥</span><span class="text">HTML</span></a>` : ''}
+                    ${r.pdf_download_url ? `<a class="history-item-btn" href="${encodeURI(r.pdf_download_url)}" download><span class="icon">📥</span><span class="text">PDF</span></a>` : ''}
+                    ${r.resolved_url ? `<a class="history-item-btn" href="${encodeURI(r.resolved_url)}" download><span class="icon">📥</span><span class="text">REQS</span></a>` : ''}
                 </div>
             </li>
         `).join('');

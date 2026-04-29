@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +31,11 @@ async def lifespan(app: FastAPI):
     負責在伺服器啟動前初始化資源，並在關閉後釋放資源。
     """
     # --- 啟動階段 ---
+    # 快取首頁 HTML，避免每次請求都從磁碟讀取
+    global _index_html
+    template_path = Path(__file__).parent / "templates" / "upload.html"
+    _index_html = template_path.read_text(encoding="utf-8")
+
     # 確保報告儲存目錄存在
     settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -38,10 +43,6 @@ async def lifespan(app: FastAPI):
     # 設定統一的超時時間以防止請求無限期等待
     client = httpx.AsyncClient(timeout=httpx.Timeout(settings.REQUEST_TIMEOUT))
     app.state.http_client = client
-    
-    # 將共用客戶端注入到各個服務模組中
-    osv_client.init_client(client)
-    pypi_client.init_client(client)
     
     logger.info("Python Dependency Auditor V1.0 已啟動")
     logger.info("翻譯模式: %s", settings.TRANSLATION_MODE)
@@ -80,11 +81,13 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # 註冊稽核相關的 API 路由
 app.include_router(audit.router)
 
+# 首頁 HTML 快取 (由 lifespan 初始化)
+_index_html: str = ""
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
     """
-    首頁路由 — 直接回傳上傳介面的 HTML 內容
+    首頁路由 — 回傳啟動時快取的上傳介面 HTML
     """
-    template_path = Path(__file__).parent / "templates" / "upload.html"
-    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_index_html)

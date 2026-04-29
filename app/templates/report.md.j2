@@ -4,10 +4,14 @@
 > **稽核檔案**: {{ source_file }}
 > **套件總數**: {{ total_packages }}
 > **漏洞套件數**: {{ vuln_count }}
-> **目標 Python**: {{ python_version }}
-> **目標平台**: {{ platform }}
+ > **目標 Python**: {{ python_version }}
+ > **目標平台**: {{ platform }}
+ {% if added_packages -%}
+ > **相依性補足**: 新增了 {{ added_packages | length }} 個相依套件
+ {% endif -%}
+ 
+ ---
 
----
 
 ## 📊 稽核總覽
 
@@ -17,9 +21,21 @@
 | {{ pkg.index }} | [{{ pkg.name }}](https://pypi.org/project/{{ pkg.name }}/{{ pkg.version }}/) ({{ pkg.version }}) | {{ pkg.summary_zh | sanitize }} | {{ pkg.license_type | sanitize | truncate_text(80) }} | {% if pkg.source_repo %}[Repo]({{ pkg.source_repo }}){% else %}N/A{% endif %} | [Snyk]({{ pkg.snyk_url }}) {{ pkg.snyk_status }} | {% if pkg.download_filename %}[{{ pkg.download_filename }}]({{ pkg.download_url }}){% else %}[Download]({{ pkg.download_url }}){% endif %} |
 {% endfor %}
 
----
+ ---
+ 
+ {% if added_packages -%}
+ ## 📦 相依性變更分析
+ 
+ **補足的相依套件 (Added Dependencies):**
+ {% for pkg in added_packages -%}
+ - {{ pkg }}
+ {% endfor %}
+ 
+ ---
+ {% endif -%}
+ 
+ ## 🛡️ 漏洞明細
 
-## 🛡️ 漏洞明細
 
 {% for pkg in packages -%}
 {%- if pkg.vulnerabilities -%}
@@ -37,7 +53,8 @@
 ✅ **所有套件通過漏洞稽核，未發現已知漏洞。**
 {% endif %}
 
----
+ ---
+ 
+ > 本報告由 **Python Dependency Auditor V1.0** 自動產出
+ > 漏洞資料來源: [OSV](https://osv.dev/) | 套件資訊來源: [PyPI](https://pypi.org/)
 
-> 本報告由 **Python Dependency Auditor V1.0** 自動產出
-> 漏洞資料來源: [OSV](https://osv.dev/) | 套件資訊來源: [PyPI](https://pypi.org/)

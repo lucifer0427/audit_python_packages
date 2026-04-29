@@ -1,6 +1,19 @@
 """Pydantic 資料模型定義"""
 
+from typing import TypedDict
+
 from pydantic import BaseModel
+
+
+class PyPIPackageData(TypedDict):
+    """PyPI API 查詢結果的結構化型別"""
+
+    version: str
+    summary: str
+    license: str
+    source_repo: str | None
+    download_url: str
+    download_filename: str
 
 
 class PackageInfo(BaseModel):
@@ -47,3 +60,6 @@ class AuditReport(BaseModel):
     python_version: str = ""  # 使用者選擇的 Python 版本
     platform: str = "win_amd64"  # 目標平台
     packages: list[AuditResult]
+    resolved_requirements_file: str | None = None
+    added_packages: list[str] = []
+    removed_packages: list[str] = []
