@@ -2,7 +2,7 @@
 
 ![Aesthetics](https://img.shields.io/badge/UI-Professional_Light-blue?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/Architecture-Dependency_Injection-green?style=for-the-badge)
-![Coverage](https://img.shields.io/badge/Coverage-74%25-brightgreen?style=for-the-badge)
+![Coverage](https://img.shields.io/badge/Coverage-99%25-brightgreen?style=for-the-badge)
 ![PDF](https://img.shields.io/badge/Report-PDF_&_Markdown-orange?style=for-the-badge)
 ![LLM](https://img.shields.io/badge/AI-Gemma_/_GPT-purple?style=for-the-badge)
 
@@ -17,7 +17,7 @@
 - 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（內建 Noto Sans CJK TC 字型，優化表格排版與防破版處理）。
 - 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，透過 `AuditService` 統一調度與結果去重。
 - 🧠 **健壯的 AI 翻譯與分片** — 支援 **GPT-4o** / **Gemini-2.0** 批次翻譯英文摘要，具備 Chunking 防截斷處理機制，完美應對百個以上套件的大型專案。
-- 🧪 **高測試覆蓋率** — 具備完整的 `pytest` 單元測試套件，涵蓋 API、Clients、與 Mocking，測試覆蓋率達 **74%** 以上。
+- 🧪 **高測試覆蓋率** — 具備完整的 `pytest` 單元測試套件，涵蓋 API、Clients、與 Mocking，測試覆蓋率達 **99%**。
 - 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，支援 600s 長時間連線處理與 CSP 基礎防護。
 
 ## 📊 稽核流程圖
