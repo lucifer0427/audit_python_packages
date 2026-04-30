@@ -3,6 +3,7 @@ name = "python-dependency-auditor"
 version = "1.0.0"
 description = "自動化 Python 套件資安稽核工具"
 requires-python = ">=3.12"
+license = {text = "MIT"}
 
 [tool.ruff]
 line-length = 120
