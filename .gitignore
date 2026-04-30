@@ -33,3 +33,9 @@ uv.lock
 
 # Logs
 server.log
+
+# RUF
+.ruff_cache/
+
+# Plans
+PLAN_PIP_REPORT.md

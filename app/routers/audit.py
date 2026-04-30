@@ -27,7 +27,8 @@ router = APIRouter(prefix="/api", tags=["audit"])
 async def run_audit(
     request: Request,
     file: UploadFile,
-    python_version: str = Form(default="")
+    python_version: str = Form(default=""),
+    platform: str = Form(default="win_amd64")
 ):
     """
     上傳 requirements.txt 執行資安稽核
@@ -78,7 +79,7 @@ async def run_audit(
         )
         
         # 呼叫核心工作流，回傳包含報告下載連結的摘要結果
-        result = await audit_service.run_audit_flow(content, file.filename, python_version)
+        result = await audit_service.run_audit_flow(content, file.filename, python_version, platform)
         return JSONResponse(content=result)
     except ValueError as e:
         # 捕捉由 AuditService 拋出的已知業務驗證錯誤 (例如 requirements 解析失敗)

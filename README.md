@@ -12,7 +12,7 @@
 
 - 🎨 **專業商務 UI** — 現代化的專業淺色主題 (Light Theme)，提供直覺的拖拉上傳與整齊的歷史報告管理介面。
 - ⚡ **環境隔離解析 (Environmental Isolation)** — 內建極速 `uv pip compile` 機制，支援跨環境模擬指定 Python 版本的依賴解析，並提供補齊後的新版 requirements 下載。
-- 🎯 **精確的套件標籤匹配 (Precise Tag Matching)** — 修正了 Wheel 標籤匹配邏輯，支援 Python 3.13+ 的 **Free-threading (t 字尾)** 辨識。系統能根據用戶請求精確篩選標準版或 `t` 版安裝檔，避免「平台不相容」錯誤。
+- 🎯 **精確下載連結與跨平台支援** — 導入 `pip install --dry-run --report` 技術，不再僅限於 Windows，使用者可自由選擇 Windows、Linux 或 macOS 平台，系統將產出 100% 精確的目標環境安裝檔連結。支援 Python 3.13+ 的 **Free-threading (t 字尾)** 辨識。
 - 🏛️ **相依性注入與持久化快取** — 採用類別實例與 DI 設計，並整合基於 SQLite 的 **`diskcache`** 實現硬碟持久化快取，大幅降低 API 延遲與外部依賴。
 - 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（內建 Noto Sans CJK TC 字型，優化表格排版與防破版處理）。
 - 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，透過 `AuditService` 統一調度與結果去重。
@@ -28,7 +28,8 @@ graph TD
     Start([<b>📥 用戶上傳</b><br/>requirements.txt])
     Parse[<b>🔍 解析內容</b><br/>正規表達式提取]
     Resolve[<b>⚡ uv 引擎解析</b><br/>遞迴補足相依性]
-    PyPI[<b>📦 PyPI 查詢</b><br/>Metadata 與標籤精確匹配]
+    PyPI[<b>📦 PyPI 查詢</b><br/>Metadata 獲取]
+    PipReport[<b>🔗 pip --report</b><br/>精準跨平台下載連結]
     OSV[<b>🛡️ OSV 掃描</b><br/>漏洞資料庫比對]
     PipAudit[<b>🔎 pip-audit</b><br/>深層相依性稽核]
     Merge[<b>🔗 結果合併</b><br/>漏洞去重與整合]
@@ -40,7 +41,8 @@ graph TD
     Start --> Parse
     Parse --> Resolve
     Resolve --> PyPI
-    PyPI --> OSV
+    PyPI --> PipReport
+    PipReport --> OSV
     OSV --> PipAudit
     PipAudit --> Merge
     Merge --> Translate
@@ -92,9 +94,9 @@ docker compose up -d --build
 ### 3. 使用方式
 
 1. 瀏覽器開啟 `http://localhost`。
-2. 選擇目標 **Python 版本** (用於篩選 Windows AMD64 wheel 檔案)。
+2. 選擇 **目標 Python 版本** 與 **目標作業系統平台** (如 Windows 64-bit、Linux 等)。
 3. 上傳 `requirements.txt`。
-4. 點擊 **[執行稽核]**，稍待片刻即可線上預覽 Markdown 報告，或下載 PDF 與解析後的完整 `requirements.txt`。
+4. 點擊 **[🚀 開始稽核]**，稍待片刻即可線上預覽 Markdown 報告，或下載 PDF、解析後的完整 `requirements.txt` 與精準的離線安裝檔。
 
 ## ⚙️ 環境變數說明
 
@@ -122,7 +124,7 @@ docker compose up -d --build
 │   ├── templates/          # HTML 介面與 Jinja2 模板
 │   ├── services/
 │   │   ├── audit_service.py        # 核心稽核流程 (依賴注入實作)
-│   │   ├── dependency_resolver.py  # 基於 uv 的極速跨環境依賴解析
+│   │   ├── dependency_resolver.py  # uv 依賴解析與 pip --report 精準下載連結獲取
 │   │   ├── llm_client.py           # OpenAI/Gemini 非同步實作
 │   │   ├── osv_client.py           # OSV API 與 diskcache 持久化快取
 │   │   ├── pypi_client.py          # PyPI 資訊查詢與 diskcache 持久化快取

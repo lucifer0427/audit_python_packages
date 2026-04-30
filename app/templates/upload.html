@@ -35,7 +35,7 @@
             </div>
             <div class="version-selector">
                 <label class="version-label" for="pythonVersion">
-                    🐍 目標 Python 版本 <span class="version-hint">(Windows AMD64 平台)</span>
+                    🐍 目標 Python 版本
                 </label>
                 <select class="version-select" id="pythonVersion">
                     <option value="">自動選擇 (不限版本)</option>
@@ -47,6 +47,17 @@
                     <option value="3.11">Python 3.11</option>
                     <option value="3.10">Python 3.10</option>
                     <option value="3.9">Python 3.9</option>
+                </select>
+            </div>
+            <div class="version-selector">
+                <label class="version-label" for="platformInfo">
+                    💻 目標作業系統平台
+                </label>
+                <select class="version-select" id="platformInfo">
+                    <option value="win_amd64" selected>Windows (64-bit)</option>
+                    <option value="manylinux_2_17_x86_64">Linux (manylinux 64-bit)</option>
+                    <option value="macosx_11_0_arm64">macOS (Apple Silicon)</option>
+                    <option value="macosx_10_9_x86_64">macOS (Intel)</option>
                 </select>
             </div>
             <button class="submit-btn" id="submitBtn" disabled>

@@ -5,6 +5,7 @@
 import logging
 import subprocess
 import tempfile
+import json
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -77,3 +78,65 @@ def resolve_dependencies(requirements_content: bytes, python_version: str = "") 
         
         logger.info("相依性解析完成，共解析出 %d 個套件", len(resolved_packages))
         return new_reqs_content, resolved_packages
+
+
+def get_offline_download_urls(requirements_content: bytes, python_version: str = "", platform: str = "win_amd64") -> dict[str, str]:
+    """
+    利用 pip --report 功能獲取指定平台與版本的精準下載連結
+    
+    Returns:
+        dict: {package_name: download_url, ...}
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        req_file = Path(tmpdir) / "requirements.txt"
+        req_file.write_bytes(requirements_content)
+        
+        report_file = Path(tmpdir) / "report.json"
+        
+        # 構建 pip install --report 命令
+        # --dry-run: 不實際安裝
+        # --report: 產出 JSON 格式的解析報告
+        # --platform: 指定目標平台 (如 win_amd64)
+        # --python-version: 指定目標 Python 版本
+        # --only-binary :all: 強制尋找 binary wheel 檔，避免觸發 source build 解析
+        cmd = [
+            "pip", "install", 
+            "--dry-run", 
+            "--report", str(report_file), 
+            "--only-binary", ":all:", 
+            "-r", str(req_file)
+        ]
+        
+        if platform:
+            cmd.extend(["--platform", platform])
+        if python_version:
+            cmd.extend(["--python-version", python_version])
+            
+        try:
+            logger.info("執行 pip report 以獲取下載連結 (platform=%s, py=%s)...", platform, python_version)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error("pip report 執行失敗: %s", e.stderr)
+            return {}
+
+        if not report_file.exists():
+            logger.error("pip 未生成 report.json")
+            return {}
+
+        # 解析 report.json
+        try:
+            with open(report_file, "r", encoding="utf-8") as f:
+                report_data = json.load(f)
+            
+            download_urls = {}
+            for install in report_data.get("install", []):
+                name = install.get("metadata", {}).get("name")
+                url = install.get("download_info", {}).get("url")
+                if name and url:
+                    download_urls[name.lower()] = url
+            
+            return download_urls
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error("解析 report.json 失敗: %s", e)
+            return {}
+

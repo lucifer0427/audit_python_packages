@@ -38,11 +38,13 @@ def audit_service(mock_osv_client, mock_pypi_client, mock_translator):
 async def test_run_audit_flow_success(audit_service, mock_osv_client, mock_pypi_client, mock_translator):
     with patch("app.services.parser.parse_requirements") as mock_parse, \
          patch("app.services.dependency_resolver.resolve_dependencies") as mock_resolve, \
+         patch("app.services.dependency_resolver.get_offline_download_urls") as mock_get_urls, \
          patch("app.services.pip_audit_runner.run_pip_audit") as mock_pip_audit, \
          patch("app.services.report_generator.generate_report") as mock_gen_report:
         
         mock_parse.return_value = [PackageInfo(name="test-pkg", version="1.0.0")]
         mock_resolve.return_value = (b"test-pkg==1.0.0", [("test-pkg", "1.0.0")])
+        mock_get_urls.return_value = {"test-pkg": "http://pip.com/dl"}
         mock_pip_audit.return_value = {}
         mock_gen_report.return_value = (
             MagicMock(name="md"), MagicMock(name="html"), MagicMock(name="pdf"), MagicMock(name="res")
@@ -72,11 +74,13 @@ async def test_run_audit_flow_with_vulns(audit_service, mock_osv_client, mock_py
     
     with patch("app.services.parser.parse_requirements") as mock_parse, \
          patch("app.services.dependency_resolver.resolve_dependencies") as mock_resolve, \
+         patch("app.services.dependency_resolver.get_offline_download_urls") as mock_get_urls, \
          patch("app.services.pip_audit_runner.run_pip_audit") as mock_pip_audit, \
          patch("app.services.report_generator.generate_report") as mock_gen_report:
         
         mock_parse.return_value = [PackageInfo(name="test-pkg", version="1.0.0")]
         mock_resolve.return_value = (b"test-pkg==1.0.0", [("test-pkg", "1.0.0")])
+        mock_get_urls.return_value = {}
         
         # Mock OSV vuln
         mock_osv_client.query_vulnerabilities.return_value = [

@@ -37,7 +37,7 @@ class AuditService:
         self.pypi_client = pypi_client
         self.translator = translator
 
-    async def run_audit_flow(self, file_content: bytes, filename: str, python_version: str = "") -> dict:
+    async def run_audit_flow(self, file_content: bytes, filename: str, python_version: str = "", platform: str = "win_amd64") -> dict:
         """
         執行完整的稽核流程工作流
         
@@ -63,6 +63,9 @@ class AuditService:
         # 使用 uv pip compile 模擬環境解析，將「直接依賴」擴展為「完整依賴樹」，確保所有潛在風險套件都被掃描
         from app.services import dependency_resolver
         resolved_reqs_content, resolved_pkgs_list = dependency_resolver.resolve_dependencies(file_content, python_version)
+        
+        # 獲取精準的離線下載連結
+        offline_urls = dependency_resolver.get_offline_download_urls(resolved_reqs_content, python_version, platform)
         
         # 計算新增的遞迴相依套件 (不在原始清單中的套件)，用於在報告中區分直接依賴與間接依賴
         original_names = {pkg.name.lower() for pkg in original_packages}
@@ -148,7 +151,7 @@ class AuditService:
                     vulnerabilities=pkg_vulns,
                     snyk_url=snyk_url,
                     snyk_status=snyk_status,
-                    download_url=info.get("download_url", ""),
+                    download_url=offline_urls.get(pkg.name.lower(), info.get("download_url", "")),
                     download_filename=info.get("download_filename", ""),
                 )
             )
@@ -162,7 +165,7 @@ class AuditService:
             total_packages=len(audit_results),
             vuln_count=vuln_count,
             python_version=python_version or "未指定",
-            platform="Windows AMD64",
+            platform=platform,
             packages=audit_results,
             added_packages=added_packages,
         )
