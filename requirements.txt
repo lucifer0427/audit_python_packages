@@ -10,10 +10,10 @@ aiofiles>=24.1.0
 openai>=1.60.0
 google-genai>=1.10.0
 weasyprint
-Markdown==3.7
+Markdown>=3.8.1
 httpx>=0.27.0
 async-lru>=2.0.4
-uv
+uv>=0.11.15
 diskcache
 
 # Dev Dependencies

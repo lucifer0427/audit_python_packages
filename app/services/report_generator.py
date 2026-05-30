@@ -6,11 +6,11 @@ from pathlib import Path
 
 import markdown
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML, CSS
+from weasyprint import CSS, HTML
 
 from app.config import settings
 from app.models.schemas import AuditReport
-from app.utils.sanitizer import sanitize_for_table, truncate
+from app.utils.sanitizer import escape_html, sanitize_for_table, truncate
 
 logger = logging.getLogger(__name__)
 
@@ -19,23 +19,25 @@ _template_dir = Path(__file__).resolve().parent.parent / "templates"
 _env = Environment(
     loader=FileSystemLoader(str(_template_dir)),
     keep_trailing_newline=True,
+    autoescape=True,
 )
 
 # 註冊自訂 filter
 _env.filters["sanitize"] = sanitize_for_table
 _env.filters["truncate_text"] = truncate
+_env.filters["escape_html"] = escape_html
 
 
 def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> tuple[Path, Path, Path, Path | None]:
     """生成 Markdown, HTML 與 PDF 稽核報告，以及更新後的 requirements.txt
-    
+
     本函數負責將稽核結果物件轉化為可閱讀的最終文件。
     產出流程：Jinja2 模板渲染 $\to$ Markdown 檔案 $\to$ Markdown 轉 HTML $\to$ HTML 轉 PDF。
-    
+
     Args:
         report: 包含所有稽核數據的 AuditReport 模型
         resolved_reqs: 解析後的完整遞迴相依性內容，用於提供下載
-    
+
     Returns:
         (markdown_filepath, html_filepath, pdf_filepath, resolved_reqs_filepath)
     """
@@ -70,7 +72,7 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
         counter += 1
 
     filepath.write_text(content, encoding="utf-8")
-    
+
     # 3. 轉換為 HTML 格式
     # 使用 markdown 函式庫將 MD 轉為 HTML，並包裹在包含 GitHub-style CSS 的完整 HTML 頁面中
     # 這使得報告在瀏覽器中開啟時具有極佳的視覺效果
@@ -102,14 +104,15 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
         resolved_filename = f"resolved_{filename.replace('.md', '.txt')}"
         resolved_reqs_path = reports_dir / resolved_filename
         resolved_reqs_path.write_bytes(resolved_reqs)
-    
+
     # 5. 生成 PDF 版本
     # 利用 WeasyPrint 將 HTML 內容渲染成 PDF。
     # 特別定義了 pdf_css 以確保 A4 橫向輸出 (landscape)，並配置 Noto Sans CJK TC 字型以防止中文破版。
     pdf_filename = filename.replace(".md", ".pdf")
     pdf_filepath = reports_dir / pdf_filename
-    
-    pdf_css = CSS(string='''
+
+    pdf_css = CSS(
+        string="""
         @page { size: A4 landscape; margin: 1.5cm; }
         body { font-family: "Noto Sans CJK TC", "Microsoft JhengHei", "PingFang TC", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #333; }
         h1, h2, h3 { color: #2c3e50; }
@@ -119,11 +122,16 @@ def generate_report(report: AuditReport, resolved_reqs: bytes | None = None) -> 
         tr:nth-child(even) { background-color: #fbfcfd; }
         a { color: #3498db; text-decoration: none; }
         blockquote { border-left: 4px solid #ccc; margin: 0; padding-left: 10px; color: #666; }
-    ''')
-    
+    """
+    )
+
     HTML(string=html_content).write_pdf(pdf_filepath, stylesheets=[pdf_css])
-    
-    logger.info("報告已生成: MD=%s, HTML=%s, PDF=%s, REQS=%s", filepath.name, html_filepath.name, pdf_filepath.name, resolved_reqs_path.name if resolved_reqs_path else "None")
+
+    logger.info(
+        "報告已生成: MD=%s, HTML=%s, PDF=%s, REQS=%s",
+        filepath.name,
+        html_filepath.name,
+        pdf_filepath.name,
+        resolved_reqs_path.name if resolved_reqs_path else "None",
+    )
     return filepath, html_filepath, pdf_filepath, resolved_reqs_path
-
-

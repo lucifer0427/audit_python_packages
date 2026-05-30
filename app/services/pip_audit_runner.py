@@ -16,22 +16,20 @@ logger = logging.getLogger(__name__)
 
 def run_pip_audit(requirements_content: str) -> dict[str, list[VulnerabilityInfo]]:
     """執行 pip-audit 掃描
-    
+
     本函數透過 subprocess 呼叫外部 `pip-audit` CLI 工具，並解析其回傳的 JSON 輸出。
     pip-audit 能提供與 OSV API 不同維度的漏洞掃描結果，作為安全性分析的雙重驗證。
 
     Args:
         requirements_content: 欲掃描的 requirements.txt 文字內容
-    
+
     Returns:
         {套件名稱: [漏洞列表]} 的字典
     """
     results: dict[str, list[VulnerabilityInfo]] = {}
 
     # 將掃描對象寫入暫存檔案，因為 pip-audit 的 -r 參數要求傳入檔案路徑而非字串
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".txt", delete=False
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
         tmp.write(requirements_content)
         tmp_path = Path(tmp.name)
 
@@ -41,9 +39,12 @@ def run_pip_audit(requirements_content: str) -> dict[str, list[VulnerabilityInfo
         # --progress-spinner off: 關閉進度動畫，避免雜訊污染 stdout 輸出
         cmd = [
             "pip-audit",
-            "-r", str(tmp_path),
-            "--format", "json",
-            "--progress-spinner", "off",
+            "-r",
+            str(tmp_path),
+            "--format",
+            "json",
+            "--progress-spinner",
+            "off",
         ]
 
         logger.info("執行 pip-audit: %s", " ".join(cmd))
@@ -51,7 +52,7 @@ def run_pip_audit(requirements_content: str) -> dict[str, list[VulnerabilityInfo
             cmd,
             capture_output=True,
             text=True,
-            timeout=300, # 設定 5 分鐘超時，防止某些複雜依賴導致掃描卡死
+            timeout=300,  # 設定 5 分鐘超時，防止某些複雜依賴導致掃描卡死
         )
 
         # pip-audit 回傳碼定義: 0 = 無漏洞, 1 = 發現漏洞, 其他 = 執行錯誤
@@ -78,7 +79,7 @@ def run_pip_audit(requirements_content: str) -> dict[str, list[VulnerabilityInfo
                 vuln_list.append(
                     VulnerabilityInfo(
                         vuln_id=v.get("id", "UNKNOWN"),
-                        summary=v.get("description", "無描述")[:200], # 截斷長度防止報告表格崩潰
+                        summary=v.get("description", "無描述")[:200],  # 截斷長度防止報告表格崩潰
                         severity=None,
                         snyk_url=None,
                     )
@@ -97,4 +98,3 @@ def run_pip_audit(requirements_content: str) -> dict[str, list[VulnerabilityInfo
         tmp_path.unlink(missing_ok=True)
 
     return results
-

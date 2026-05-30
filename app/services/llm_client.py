@@ -30,7 +30,7 @@ class LLMClient(ABC):
     async def translate_summaries(self, items: list[dict]) -> dict[str, str]:
         """
         批次翻譯套件摘要的非同步介面
-        
+
         Args:
             items: 包含套件名稱與英文摘要的列表: [{"name": "requests", "summary": "..."}]
         Returns:
@@ -44,6 +44,7 @@ class OpenAIClient(LLMClient):
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         from openai import AsyncOpenAI
+
         # 使用非同步客戶端 (AsyncOpenAI) 以避免阻塞 FastAPI 的事件迴圈 (Event Loop)
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
@@ -54,9 +55,7 @@ class OpenAIClient(LLMClient):
 
         # 批次處理 (Batching)：將多個套件摘要組合成單一提示詞 (Prompt) 發送給 LLM
         # 這能大幅降低 API 請求次數，減少網路延遲並降低 Token 成本
-        user_content = "\n".join(
-            f"- {item['name']}: {item['summary']}" for item in items
-        )
+        user_content = "\n".join(f"- {item['name']}: {item['summary']}" for item in items)
 
         try:
             response = await self.client.chat.completions.create(
@@ -65,8 +64,8 @@ class OpenAIClient(LLMClient):
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_content},
                 ],
-                temperature=0.3, # 設定低隨機性，確保翻譯結果穩定、專業且一致
-                response_format={"type": "json_object"}, # 強制要求 API 回傳合法 JSON 格式，方便後續直接解析
+                temperature=0.3,  # 設定低隨機性，確保翻譯結果穩定、專業且一致
+                response_format={"type": "json_object"},  # 強制要求 API 回傳合法 JSON 格式，方便後續直接解析
             )
             content = response.choices[0].message.content
             try:
@@ -85,19 +84,18 @@ class GeminiClient(LLMClient):
 
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
         from google import genai
+
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
     async def translate_summaries(self, items: list[dict]) -> dict[str, str]:
         if not items:
             return {}
-            
+
         from google.genai import types
 
         # 同樣採用批次處理方式，減少 API 往返次數
-        user_content = "\n".join(
-            f"- {item['name']}: {item['summary']}" for item in items
-        )
+        user_content = "\n".join(f"- {item['name']}: {item['summary']}" for item in items)
         prompt = f"{SYSTEM_PROMPT}\n\n{user_content}"
 
         try:
@@ -105,17 +103,17 @@ class GeminiClient(LLMClient):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 config=types.GenerateContentConfig(
-                    response_mime_type="application/json" # 告知 API 僅需回傳 JSON 內容
+                    response_mime_type="application/json"  # 告知 API 僅需回傳 JSON 內容
                 ),
                 contents=prompt,
             )
             text = response.text.strip()
-            
+
             # 處理 Gemini 可能將 JSON 包在 Markdown 程式碼塊 (```json ... ```) 中的情況
             if text.startswith("```"):
                 text = text.split("\n", 1)[1]
                 text = text.rsplit("```", 1)[0].strip()
-            
+
             try:
                 return json.loads(text)
             except json.JSONDecodeError as e:

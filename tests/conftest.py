@@ -1,8 +1,6 @@
-import json
-from pathlib import Path
-
 import httpx
 import pytest
+
 
 @pytest.fixture
 def mock_http_client():
@@ -14,13 +12,15 @@ def mock_http_client():
     # No need to aclose since it's intercepted, but it's good practice
     # Though in async fixture we'd need pytest-asyncio and async def.
     # We'll just provide a sync fixture that returns the client.
-    
+
+
 @pytest.fixture
 def sample_requirements():
     return b"""
 requests==2.31.0
 Django>=4.2.0
 """
+
 
 @pytest.fixture
 def sample_pypi_response():
@@ -31,24 +31,25 @@ def sample_pypi_response():
             "license": "Apache 2.0",
             "project_urls": {
                 "Homepage": "https://requests.readthedocs.io",
-                "Source": "https://github.com/psf/requests"
-            }
+                "Source": "https://github.com/psf/requests",
+            },
         },
         "releases": {
             "2.31.0": [
                 {
                     "filename": "requests-2.31.0-py3-none-any.whl",
                     "packagetype": "bdist_wheel",
-                    "url": "https://files.pythonhosted.org/packages/.../requests-2.31.0-py3-none-any.whl"
+                    "url": "https://files.pythonhosted.org/packages/.../requests-2.31.0-py3-none-any.whl",
                 },
                 {
                     "filename": "requests-2.31.0.tar.gz",
                     "packagetype": "sdist",
-                    "url": "https://files.pythonhosted.org/packages/.../requests-2.31.0.tar.gz"
-                }
+                    "url": "https://files.pythonhosted.org/packages/.../requests-2.31.0.tar.gz",
+                },
             ]
-        }
+        },
     }
+
 
 @pytest.fixture
 def sample_osv_response():
@@ -57,17 +58,17 @@ def sample_osv_response():
             {
                 "id": "GHSA-j8r2-6x86-q33q",
                 "summary": "Potential denial of service in Requests",
-                "database_specific": {
-                    "severity": "MODERATE"
-                }
+                "database_specific": {"severity": "MODERATE"},
             }
         ]
     }
+
 
 @pytest.fixture(autouse=True)
 def mock_reports_dir(tmp_path):
     """Override REPORTS_DIR to use a temporary directory for all tests"""
     from app.config import settings
+
     original_dir = settings.REPORTS_DIR
     settings.REPORTS_DIR = tmp_path / "reports"
     settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)

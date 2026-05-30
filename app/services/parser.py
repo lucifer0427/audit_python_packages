@@ -27,17 +27,17 @@ def detect_encoding(raw_bytes: bytes) -> str:
 
 def parse_requirements(content: bytes | str) -> list[PackageInfo]:
     """解析 requirements.txt 內容
-    
+
     本函數負責將原始的檔案內容轉換為結構化的 PackageInfo 物件清單。
     它支援自動編碼偵測，並能處理複雜的 requirements 格式，包括：
     - 移除註解與空行
     - 處理環境標記 (Environment Markers)
     - 處理套件擴展 (Extras, e.g., uvicorn[standard])
     - 解析版本運算子 (==, >=, etc.)
-    
+
     Args:
         content: 檔案內容 (bytes 或 str)
-    
+
     Returns:
         解析後的套件清單 (PackageInfo)
     """
@@ -47,6 +47,8 @@ def parse_requirements(content: bytes | str) -> list[PackageInfo]:
         # 針對 bytes 內容，優先偵測 BOM 以決定正確的解碼方式 (UTF-8 / UTF-16)
         encoding = detect_encoding(content)
         text = content.decode(encoding)
+        if text.startswith("\ufeff"):
+            text = text[1:]
     else:
         text = content
 
@@ -80,7 +82,6 @@ def parse_requirements(content: bytes | str) -> list[PackageInfo]:
 
     logger.info("解析完成: 共 %d 個套件", len(packages))
     return packages
-
 
 
 def _parse_package_line(line: str, line_num: int) -> PackageInfo | None:

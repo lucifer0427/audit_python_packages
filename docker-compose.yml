@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1.31.1-alpine3.23-slim
     container_name: auditor-nginx
     environment:
       - TZ=Asia/Taipei

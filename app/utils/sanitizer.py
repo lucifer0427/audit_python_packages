@@ -3,9 +3,21 @@
 import re
 
 
+def escape_html(text: str | None) -> str:
+    if not text:
+        return ""
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
+
+
 def sanitize_for_table(text: str | None) -> str:
     """清洗文字使其適合放入 Markdown 表格欄位
-    
+
     Markdown 表格使用 `|` 作為欄位分隔符，若內容包含該符號將導致表格排版崩潰。
     本函數執行以下轉換：
     - 將換行符 \n $\to$ <br> (讓 HTML/PDF 報告能正確顯示換行)
@@ -18,7 +30,6 @@ def sanitize_for_table(text: str | None) -> str:
     result = result.replace("|", "/")
     result = re.sub(r"\s+", " ", result).strip()
     return result
-
 
 
 def truncate(text: str | None, max_len: int = 100) -> str:
@@ -75,7 +86,7 @@ def clean_license(
         license_prefix = "License :: OSI Approved :: "
         for cls in classifiers:
             if cls.startswith(license_prefix):
-                return cls[len(license_prefix):]
+                return cls[len(license_prefix) :]
         # 更寬鬆的匹配
         for cls in classifiers:
             if cls.startswith("License :: "):

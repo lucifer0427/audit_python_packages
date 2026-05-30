@@ -1,5 +1,7 @@
 """sanitizer 模組測試"""
-from app.utils.sanitizer import sanitize_for_table, truncate, clean_license
+
+from app.utils.sanitizer import clean_license, sanitize_for_table, truncate
+
 
 class TestSanitizeForTable:
     def test_newlines(self):
@@ -19,9 +21,10 @@ class TestSanitizeForTable:
 
     def test_whitespace(self):
         assert sanitize_for_table("  hello   world  ") == "hello world"
-    
+
     def test_only_pipes(self):
         assert sanitize_for_table("|||") == "///"
+
 
 class TestTruncate:
     def test_short_string(self):
@@ -38,10 +41,11 @@ class TestTruncate:
     def test_exact_length(self):
         text = "a" * 100
         assert truncate(text, 100) == text
-    
+
     def test_invalid_limit(self):
         assert truncate("hello", -1) == "h..."
         assert truncate("hello", None) == "hello"
+
 
 class TestCleanLicense:
     def test_simple_license(self):
@@ -76,7 +80,6 @@ class TestCleanLicense:
         for text, expected in patterns:
             assert expected in clean_license(text)
 
-
     def test_long_license_no_match(self):
         # Force enter if len(cleaned) > 100 and no regex match
         long_text = "This is a very long license that does not match any patterns" + " a" * 50
@@ -91,7 +94,7 @@ class TestCleanLicense:
         ]
         result = clean_license("", classifiers)
         assert result == "BSD License"
-        
+
         classifiers_simple = ["License :: MIT"]
         result_simple = clean_license("", classifiers_simple)
         assert result_simple == "MIT"

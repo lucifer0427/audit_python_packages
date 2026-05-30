@@ -4,9 +4,9 @@
 """
 
 import logging
-import re
-import diskcache
 
+import anyio
+import diskcache
 import httpx
 
 from app.config import settings
@@ -14,6 +14,7 @@ from app.models.schemas import PyPIPackageData
 from app.utils.sanitizer import clean_license
 
 logger = logging.getLogger(__name__)
+
 
 class PyPIClient:
     """
@@ -24,7 +25,7 @@ class PyPIClient:
     def __init__(self, client: httpx.AsyncClient):
         self._client = client
         # 使用持久化快取，存放在報告目錄下的 .cache/pypi
-        self._cache = diskcache.Cache(settings.REPORTS_DIR / ".cache" / "pypi")
+        self._cache = diskcache.Cache(settings.REPORTS_DIR / ".cache" / "pypi", disk=diskcache.JSONDisk)
 
     def _version_to_cp_tags(self, python_version: str) -> list[str]:
         """
@@ -33,11 +34,11 @@ class PyPIClient:
         """
         if not python_version:
             return []
-        
+
         # 處理 3.14t 這種格式
         has_t = python_version.endswith("t")
         clean_version = python_version[:-1] if has_t else python_version
-        
+
         parts = clean_version.split(".")
         if len(parts) >= 2:
             major, minor = parts[0], parts[1]
@@ -55,18 +56,19 @@ class PyPIClient:
     ) -> PyPIPackageData:
         """
         查詢 PyPI 套件詳細資訊
-        
+
         本方法實作了「快取優先」策略，使用 (名稱, 版本, Python版本) 作為 Key，
         大幅降低重複查詢 PyPI API 的次數，減少網路延遲。
-        
+
         Args:
             name: 套件名稱
             version: 指定版本，若為 None 則查詢最新穩定版
             python_version: 目標 Python 版本，用於精準篩選 Windows AMD64 的安裝檔 (.whl)
         """
         cache_key = (name, version, python_version)
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = await anyio.to_thread.run_sync(lambda: cache_key in self._cache)
+        if cached:
+            return await anyio.to_thread.run_sync(lambda: self._cache[cache_key])
 
         # 根據是否指定版本建構 PyPI JSON API URL
         url = f"{settings.PYPI_BASE_URL}/{name}/json"
@@ -104,9 +106,7 @@ class PyPIClient:
         source_repo = self._extract_source_repo(info)
 
         # 3. 下載連結提取：依據指定平台 (Windows AMD64) 與 Python 版本篩選最佳的 wheel (.whl) 檔案
-        download_url, download_filename = self._extract_download_url(
-            data, resolved_version, name, python_version
-        )
+        download_url, download_filename = self._extract_download_url(data, resolved_version, name, python_version)
 
         result = PyPIPackageData(
             version=resolved_version,
@@ -116,9 +116,9 @@ class PyPIClient:
             download_url=download_url,
             download_filename=download_filename,
         )
-        
+
         # 將結果儲存至磁碟快取，提升後續重複請求的效能
-        self._cache[cache_key] = result
+        await anyio.to_thread.run_sync(lambda: self._cache.__setitem__(cache_key, result))
         return result
 
     def _is_repo_url(self, url: str) -> bool:
@@ -168,9 +168,10 @@ class PyPIClient:
         version: str,
         name: str,
         python_version: str | None = None,
+        target_platform: str = "",
     ) -> tuple[str, str]:
         """
-        提取離線下載連結，優先匹配 Windows AMD64 平台
+        提取離線下載連結，優先匹配指定平台 (預設 Windows AMD64)
         """
         urls = data.get("urls", [])
         if not urls:
@@ -216,7 +217,9 @@ class PyPIClient:
                 if is_freethreaded_wheel and not is_freethreaded_requested:
                     continue
 
-                if "win_amd64" in platform_tag:
+                if not target_platform:
+                    any_whl.append((url, filename))
+                elif target_platform in platform_tag:
                     if requested_cp_tags and any(tag in py_tags or tag in abi_tags for tag in requested_cp_tags):
                         exact_win_amd64.append((url, filename))
                     else:

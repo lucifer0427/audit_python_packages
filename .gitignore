@@ -18,6 +18,8 @@ reports/*
 
 # Testing
 .coverage
+.coverage.*
+htmlcov/
 .pytest_cache/
 
 # OpenCode
@@ -34,8 +36,20 @@ uv.lock
 # Logs
 server.log
 
+# macOS
+.DS_Store
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# Test artifacts
+--dry-run
+
 # RUF
 .ruff_cache/
 
 # Plans
-PLAN_PIP_REPORT.md
+PLAN*.md
+IMPROVEMENT_PLAN.md

@@ -3,13 +3,16 @@
 """
 
 import logging
-import httpx
+
+import anyio
 import diskcache
+import httpx
 
 from app.config import settings
 from app.models.schemas import VulnerabilityInfo
 
 logger = logging.getLogger(__name__)
+
 
 class OSVClient:
     """
@@ -20,18 +23,20 @@ class OSVClient:
     def __init__(self, client: httpx.AsyncClient):
         self._client = client
         # 使用持久化快取，存放在報告目錄下的 .cache/osv
-        self._cache = diskcache.Cache(settings.REPORTS_DIR / ".cache" / "osv")
+        self._cache = diskcache.Cache(settings.REPORTS_DIR / ".cache" / "osv", disk=diskcache.JSONDisk)
 
     async def query_vulnerabilities(self, name: str, version: str) -> list[VulnerabilityInfo]:
         """
         查詢指定套件版本的已知漏洞
-        
+
         本方法實作了「快取優先」策略：首先嘗試從磁碟快取讀取結果，若不存在則呼叫外部 OSV API。
         這能大幅降低對 Google API 的依賴並提升重複掃描時的反應速度。
         """
         cache_key = (name, version)
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = await anyio.to_thread.run_sync(lambda: cache_key in self._cache)
+        if cached:
+            raw = await anyio.to_thread.run_sync(lambda: self._cache[cache_key])
+            return [VulnerabilityInfo(**v) for v in raw]
 
         # OSV API 要求使用 POST 請求並傳送特定的 JSON Payload
         payload = {
@@ -71,16 +76,16 @@ class OSVClient:
             results.append(
                 VulnerabilityInfo(
                     vuln_id=vuln_id,
-                    summary=summary[:200] if summary else "無描述", # 限制長度防止 Markdown 表格破版
+                    summary=summary[:200] if summary else "無描述",  # 限制長度防止 Markdown 表格破版
                     severity=severity,
                     snyk_url=snyk_url,
                 )
             )
 
         logger.info("[%s==%s] 發現 %d 個漏洞", name, version, len(results))
-        
+
         # 將查詢結果儲存至磁碟快取，避免下次相同套件版本重複呼叫 API
-        self._cache[cache_key] = results
+        await anyio.to_thread.run_sync(lambda: self._cache.__setitem__(cache_key, [v.model_dump() for v in results]))
         return results
 
     def _extract_severity(self, vuln: dict) -> str:
@@ -114,7 +119,7 @@ class OSVClient:
             # 處理 CVSS 向量格式 (例如 "CVSS:3.1/AV:N/AC:L/...")
             if "/" in score_str and ":" in score_str:
                 return f"CVSS: {score_str[:50]}"
-            
+
             # 處理純數字分數
             score = float(score_str)
             if score >= 9.0:

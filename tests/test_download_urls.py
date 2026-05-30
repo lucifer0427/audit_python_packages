@@ -1,8 +1,9 @@
 import json
 import subprocess
 from unittest.mock import MagicMock, patch
-import pytest
+
 from app.services.dependency_resolver import get_offline_download_urls
+
 
 def test_get_offline_download_urls_success():
     def mock_run(cmd, **kwargs):
@@ -10,17 +11,11 @@ def test_get_offline_download_urls_success():
         # cmd is like ['pip', 'install', '--dry-run', '--report', '/tmp/report.json', ...]
         report_idx = cmd.index("--report") + 1
         report_file = cmd[report_idx]
-        
+
         mock_data = {
             "install": [
-                {
-                    "metadata": {"name": "requests"},
-                    "download_info": {"url": "https://test.com/requests.whl"}
-                },
-                {
-                    "metadata": {"name": "urllib3"},
-                    "download_info": {"url": "https://test.com/urllib3.whl"}
-                }
+                {"metadata": {"name": "requests"}, "download_info": {"url": "https://test.com/requests.whl"}},
+                {"metadata": {"name": "urllib3"}, "download_info": {"url": "https://test.com/urllib3.whl"}},
             ]
         }
         with open(report_file, "w", encoding="utf-8") as f:
@@ -33,10 +28,12 @@ def test_get_offline_download_urls_success():
         assert urls["requests"] == "https://test.com/requests.whl"
         assert urls["urllib3"] == "https://test.com/urllib3.whl"
 
+
 def test_get_offline_download_urls_failure():
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, [], stderr="pip error")):
         urls = get_offline_download_urls(b"requests\n")
         assert urls == {}
+
 
 def test_get_offline_download_urls_invalid_json():
     def mock_run(cmd, **kwargs):

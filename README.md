@@ -1,10 +1,11 @@
-# 🔒 Python Dependency Auditor V1.1
+# 🔒 Python Dependency Auditor V1.2
 
 ![Aesthetics](https://img.shields.io/badge/UI-Professional_Light-blue?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/Architecture-Dependency_Injection-green?style=for-the-badge)
-![Coverage](https://img.shields.io/badge/Coverage-99%25-brightgreen?style=for-the-badge)
+![Coverage](https://img.shields.io/badge/Coverage-97%25-brightgreen?style=for-the-badge)
 ![PDF](https://img.shields.io/badge/Report-PDF_&_Markdown-orange?style=for-the-badge)
-![LLM](https://img.shields.io/badge/AI-Gemma_/_GPT-purple?style=for-the-badge)
+![LLM](https://img.shields.io/badge/AI-Gemini_/_GPT-purple?style=for-the-badge)
+![Ruff](https://img.shields.io/badge/Code_Style-Ruff-passing?style=for-the-badge)
 
 自動化 Python 套件資安稽核工具。專為企業環境設計，提供專業的淺色 UI 介面，解析 `requirements.txt` 後會自動補齊所有遞迴相依套件，執行漏洞掃描與授權比對，並產出精美的繁體中文 Markdown 與 PDF 稽核報告。
 
@@ -17,8 +18,10 @@
 - 📑 **多格式報告輸出** — 同時支援 **Markdown** 預覽與 **PDF** 匯出（內建 Noto Sans CJK TC 字型，優化表格排版與防破版處理）。
 - 🛡️ **深度安全稽核** — 整合 **OSV** 與 **pip-audit** 雙重掃描，透過 `AuditService` 統一調度與結果去重。
 - 🧠 **健壯的 AI 翻譯與分片** — 支援 **GPT-4o** / **Gemini-2.0** 批次翻譯英文摘要，具備 Chunking 防截斷處理機制，完美應對百個以上套件的大型專案。
-- 🧪 **高測試覆蓋率** — 具備完整的 `pytest` 單元測試套件，涵蓋 API、Clients、與 Mocking，測試覆蓋率達 **99%**。
-- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理，支援 600s 長時間連線處理與 CSP 基礎防護。
+- 🧪 **高測試覆蓋率** — 具備完整的 `pytest` 單元測試套件，108 項測試涵蓋 API、Clients、與 Mocking，覆蓋率達 **97%**。
+- 🐳 **Docker 全端部署** — 整合 Nginx 反向代理（rate limit 5r/m）、600s 長時間連線處理與 CSP 防護。
+- 🔒 **JSON 序列化快取** — `diskcache` 改用 `JSONDisk` 取代 pickle，消除反序列化 RCE 風險 (CVE-2025-69872)。
+- 🖥️ **跨平台自動偵測** — 平台參數不再寫死 `win_amd64`，預設自動偵測主機環境 (`linux_x86_64` 等)。
 
 ## 📊 稽核流程圖
 
@@ -88,13 +91,18 @@ GEMINI_MODEL=gemini-2.0-flash
 ### 2. 啟動服務
 
 ```bash
+# Docker 部署（建議）
 docker compose up -d --build
+
+# 開發模式（需啟用 venv）
+source .venv/bin/activate
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 3. 使用方式
 
-1. 瀏覽器開啟 `http://localhost`。
-2. 選擇 **目標 Python 版本** 與 **目標作業系統平台** (如 Windows 64-bit、Linux 等)。
+1. 瀏覽器開啟 `http://localhost`（Docker）或 `http://localhost:8000`（開發模式）。
+2. 選擇 **目標 Python 版本** 與 **目標作業系統平台**（預設自動偵測為 Linux）。
 3. 上傳 `requirements.txt`。
 4. 點擊 **[🚀 開始稽核]**，稍待片刻即可線上預覽 Markdown 報告，或下載 PDF、解析後的完整 `requirements.txt` 與精準的離線安裝檔。
 
@@ -135,9 +143,28 @@ docker compose up -d --build
 ## 🔌 API 端點摘要
 
 - `GET /`: 網頁上傳介面
-- `POST /api/audit`: 執行非同步稽核 (支援依賴解析與並行優化)
+- `GET /health`: 服務健康狀態檢查 (回傳 `{"status": "ok"}`)
+- `POST /api/audit`: 執行稽核 (支援依賴解析與並行優化)
 - `GET /api/reports`: 取得歷史稽核紀錄 (包含 MD, HTML, PDF, REQS 下載連結)
 - `DELETE /api/reports`: 清空所有歷史報告
+
+## 🧪 開發指令
+
+```bash
+# 執行所有測試
+pytest tests/ -v
+
+# 程式碼風格檢查
+ruff check .      # lint
+ruff format .     # 自動格式化
+
+# 覆蓋率報告
+coverage run -m pytest tests/ && coverage report
+
+# 資安掃描
+bandit -r app/
+pip-audit --strict
+```
 
 ---
 ## 📄 License
